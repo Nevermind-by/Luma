@@ -42,7 +42,7 @@ final class ApplicationInstaller: ApplicationInstalling {
 
     private let destinationStore: InstallDestinationStore
 
-    init(destinationStore: InstallDestinationStore = InstallDestinationStore()) {
+    init(destinationStore: InstallDestinationStore) {
         self.destinationStore = destinationStore
     }
 
@@ -136,12 +136,25 @@ final class ApplicationInstaller: ApplicationInstalling {
         if let savedDirectory = destinationStore.savedDirectory() {
             guard savedDirectory.startAccessingSecurityScopedResource() else {
                 destinationStore.clear()
-                throw InstallationError.destinationAuthorizationRequired
+                return try await requestDestinationDirectory(
+                    expectedDirectory: expectedDirectory,
+                    application: application
+                )
             }
             savedDirectory.stopAccessingSecurityScopedResource()
             return savedDirectory
         }
 
+        return try await requestDestinationDirectory(
+            expectedDirectory: expectedDirectory,
+            application: application
+        )
+    }
+
+    private func requestDestinationDirectory(
+        expectedDirectory: URL,
+        application: InstalledApplication
+    ) async throws -> URL {
         let selectedDirectory = await chooseInstallationDirectory(
             expectedDirectory: expectedDirectory,
             application: application
