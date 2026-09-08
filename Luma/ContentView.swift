@@ -2,9 +2,22 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = ApplicationLibraryViewModel()
+    @StateObject private var authenticationManager = AppsTorrentAuthenticationManager()
     @State private var isAppsTorrentBrowserPresented = false
 
     var body: some View {
+        Group {
+            if authenticationManager.isLoginCompleted {
+                applicationLibrary
+            } else {
+                AppsTorrentLoginView {
+                    authenticationManager.markLoginCompleted()
+                }
+            }
+        }
+    }
+
+    private var applicationLibrary: some View {
         NavigationStack {
             Group {
                 if viewModel.isScanning && viewModel.applications.isEmpty {
@@ -64,6 +77,18 @@ struct ContentView: View {
                         Label("Open AppsTorrent", systemImage: "safari")
                     }
                     .help("Open AppsTorrent in Luma's browser session")
+
+                    Menu {
+                        Button("Sign Out of AppsTorrent") {
+                            Task {
+                                await authenticationManager.logout()
+                                await viewModel.load()
+                            }
+                        }
+                    } label: {
+                        Label("AppsTorrent", systemImage: "person.crop.circle")
+                    }
+                    .help("Manage the AppsTorrent browser session")
 
                     Button {
                         Task {
