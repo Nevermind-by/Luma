@@ -5,4 +5,5 @@ nonisolated struct InstalledApplication: Identifiable, Hashable, Sendable {
     let name: String
     let version: SoftwareVersion
     let bundleURL: URL
+    let installationSource: ApplicationInstallationSource
 }
