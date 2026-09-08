@@ -17,32 +17,45 @@ struct ContentView: View {
                     )
                 } else {
                     List(viewModel.applications) { application in
-                        ApplicationRowView(application: application)
+                        ApplicationRowView(
+                            application: application,
+                            updateState: viewModel.updateStates[application.id] ?? .notChecked
+                        )
                     }
                     .listStyle(.inset)
                 }
             }
             .navigationTitle("Applications")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        Task {
+                            await viewModel.checkForUpdates()
+                        }
+                    } label: {
+                        if viewModel.isCheckingUpdates {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Label("Check for Updates", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                    }
+                    .disabled(viewModel.isCheckingUpdates || viewModel.isScanning || viewModel.applications.isEmpty)
+                    .help("Check installed applications for updates")
+
                     Button {
                         Task {
                             await viewModel.load()
                         }
                     } label: {
-                        if viewModel.isScanning {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Label("Refresh", systemImage: "arrow.clockwise")
-                        }
+                        Label("Refresh", systemImage: "arrow.clockwise")
                     }
-                    .disabled(viewModel.isScanning)
+                    .disabled(viewModel.isScanning || viewModel.isCheckingUpdates)
                     .help("Scan installed applications")
                 }
             }
         }
-        .frame(minWidth: 620, minHeight: 420)
+        .frame(minWidth: 760, minHeight: 520)
         .task {
             await viewModel.load()
         }
