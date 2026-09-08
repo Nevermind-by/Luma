@@ -33,6 +33,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
     private var activeCapture: PendingCapture?
     private var activeTimeoutTask: Task<Void, Never>?
     private var activeDownload: PendingDownload?
+    private var activeDownloadDestination: URL?
     private var loadedURL: URL?
     private let captureTimeoutNanoseconds: UInt64 = 30_000_000_000
 
@@ -72,16 +73,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
     }
 
     func download(_ url: URL, to directory: URL) async throws -> URL {
-        if let activeDownload {
-            if activeDownload.url == url {
-                return try await withTaskCancellationHandler {
-                    try await withCheckedThrowingContinuation { continuation in
-                        // A second waiter is not supported; the existing task owns the operation.
-                        continuation.resume(throwing: BrowserError.downloadInProgress)
-                    }
-                } onCancel: {
-                }
-            }
+        guard activeDownload == nil else {
             throw BrowserError.downloadInProgress
         }
 
@@ -91,6 +83,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
                 destinationDirectory: directory,
                 continuation: continuation
             )
+            self.activeDownloadDestination = nil
             self.loadedURL = url
             self.state = .downloading(url)
             self.webView.load(URLRequest(url: url))
@@ -169,7 +162,9 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
     private func finishActiveDownload(with result: Result<URL, Error>) {
         guard let activeDownload else { return }
         self.activeDownload = nil
-        activeDownload.continuation.resume(with: result)
+        let destination = activeDownloadDestination
+        activeDownloadDestination = nil
+        activeDownload.continuation.resume(with: result.map { _ in destination ?? activeDownload.destinationDirectory })
         processNextCaptureIfNeeded()
     }
 
@@ -306,17 +301,17 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
                 filename: filename,
                 directory: activeDownload.destinationDirectory
             )
+            self.activeDownloadDestination = destination
             completionHandler(destination)
         }
     }
 
     nonisolated func downloadDidFinish(_ download: WKDownload) {
         Task { @MainActor [weak self] in
-            guard let self, let activeDownload else { return }
-            let filename = download.response?.suggestedFilename ?? activeDownload.url.lastPathComponent
-            let destination = self.uniqueDestinationURL(
-                filename: filename.isEmpty ? "Luma-Download" : filename,
-                directory: activeDownload.destinationDirectory
+            guard let self, self.activeDownload else { return }
+            let destination = self.activeDownloadDestination ?? self.uniqueDestinationURL(
+                filename: self.activeDownload.url.lastPathComponent.isEmpty ? "Luma-Download" : self.activeDownload.url.lastPathComponent,
+                directory: self.activeDownload.destinationDirectory
             )
             self.finishActiveDownload(with: .success(destination))
         }
