@@ -5,27 +5,33 @@ nonisolated struct AppsTorrentSource: UpdateSource {
 
     private let pageURLsByBundleIdentifier: [String: URL]
     private let pageProvider: any AppsTorrentPageProviding
+    private let searchProvider: any AppsTorrentSearchProviding
+    private let resolver: AppsTorrentApplicationResolver
     private let parser: AppsTorrentPageParser
+    private let versionComparator: VersionComparator
 
     init(
-        pageURLsByBundleIdentifier: [String: URL],
+        pageURLsByBundleIdentifier: [String: URL] = [:],
         pageProvider: any AppsTorrentPageProviding = URLSessionAppsTorrentPageProvider(),
-        parser: AppsTorrentPageParser = AppsTorrentPageParser()
+        searchProvider: any AppsTorrentSearchProviding = URLSessionAppsTorrentSearchProvider(),
+        resolver: AppsTorrentApplicationResolver? = nil,
+        parser: AppsTorrentPageParser = AppsTorrentPageParser(),
+        versionComparator: VersionComparator = VersionComparator()
     ) {
         self.pageURLsByBundleIdentifier = pageURLsByBundleIdentifier
         self.pageProvider = pageProvider
+        self.searchProvider = searchProvider
+        self.resolver = resolver ?? AppsTorrentApplicationResolver(searchProvider: searchProvider)
         self.parser = parser
+        self.versionComparator = versionComparator
     }
 
     func checkForUpdate(for application: InstalledApplication) async throws -> UpdateCandidate? {
-        guard let pageURL = pageURLsByBundleIdentifier[application.id.bundleIdentifier] else {
-            return nil
-        }
-
+        let pageURL = try await pageURL(for: application)
         let html = try await pageProvider.fetchPage(at: pageURL)
         let release = try parser.parse(html: html, pageURL: pageURL)
 
-        guard release.version != application.version else {
+        guard versionComparator.compare(release.version, application.version) == .orderedDescending else {
             return nil
         }
 
@@ -34,5 +40,13 @@ nonisolated struct AppsTorrentSource: UpdateSource {
             version: release.version,
             downloadOptions: release.downloadOptions
         )
+    }
+
+    private func pageURL(for application: InstalledApplication) async throws -> URL {
+        if let mappedURL = pageURLsByBundleIdentifier[application.id.bundleIdentifier] {
+            return mappedURL
+        }
+
+        return try await resolver.resolve(application: application)
     }
 }

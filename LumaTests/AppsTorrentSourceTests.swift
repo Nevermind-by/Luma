@@ -16,14 +16,10 @@ struct AppsTorrentSourceTests {
         let provider = StubPageProvider(pages: [pageURL: html])
         let source = AppsTorrentSource(
             pageURLsByBundleIdentifier: ["com.parallels.desktop.console": pageURL],
-            pageProvider: provider
+            pageProvider: provider,
+            searchProvider: StubSearchProvider(results: [])
         )
-        let application = InstalledApplication(
-            id: ApplicationIdentity(bundleIdentifier: "com.parallels.desktop.console"),
-            name: "Parallels Desktop",
-            version: SoftwareVersion("27.0.0-58628"),
-            bundleURL: URL(fileURLWithPath: "/Applications/Parallels Desktop.app")
-        )
+        let application = makeApplication(version: "27.0.0-58628")
 
         let candidate = try await source.checkForUpdate(for: application)
 
@@ -32,10 +28,57 @@ struct AppsTorrentSourceTests {
         #expect(candidate?.downloadOptions.count == 1)
     }
 
+    @Test func resolvesPageAutomaticallyWhenNoMappingExists() async throws {
+        let pageURL = URL(string: "https://appstorrent.ru/61-parallels-desktop.html")!
+        let provider = StubPageProvider(pages: [pageURL: """
+        <h1 itemprop="name">Parallels Desktop 27</h1>
+        <span itemprop="softwareVersion">27.0.1-58670</span>
+        <!--dle_spoiler Parallels Desktop 27.0.1-58670 -->
+        <a href="https://example.com/parallels.dmg">Скачать с MediaFire</a>
+        """])
+        let searchProvider = StubSearchProvider(results: [
+            AppsTorrentSearchResult(title: "Parallels Desktop 27", url: pageURL)
+        ])
+        let source = AppsTorrentSource(
+            pageProvider: provider,
+            searchProvider: searchProvider
+        )
+
+        let candidate = try await source.checkForUpdate(for: makeApplication(version: "27.0.0"))
+
+        #expect(candidate?.version == SoftwareVersion("27.0.1-58670"))
+    }
+
+    @Test func doesNotOfferDowngrade() async throws {
+        let pageURL = URL(string: "https://appstorrent.ru/app.html")!
+        let provider = StubPageProvider(pages: [pageURL: """
+        <h1 itemprop="name">Test App</h1>
+        <span itemprop="softwareVersion">1.9</span>
+        <!--dle_spoiler Test App 1.9 -->
+        <a href="https://example.com/test.dmg">Скачать с MediaFire</a>
+        """])
+        let source = AppsTorrentSource(
+            pageURLsByBundleIdentifier: ["com.example.test": pageURL],
+            pageProvider: provider,
+            searchProvider: StubSearchProvider(results: [])
+        )
+        let application = InstalledApplication(
+            id: ApplicationIdentity(bundleIdentifier: "com.example.test"),
+            name: "Test App",
+            version: SoftwareVersion("2.0"),
+            bundleURL: URL(fileURLWithPath: "/Applications/Test App.app")
+        )
+
+        let candidate = try await source.checkForUpdate(for: application)
+
+        #expect(candidate == nil)
+    }
+
     @Test func returnsNilForUnknownApplication() async throws {
         let source = AppsTorrentSource(
             pageURLsByBundleIdentifier: [:],
-            pageProvider: StubPageProvider(pages: [:])
+            pageProvider: StubPageProvider(pages: [:]),
+            searchProvider: StubSearchProvider(results: [])
         )
         let application = InstalledApplication(
             id: ApplicationIdentity(bundleIdentifier: "com.example.unknown"),
@@ -44,9 +87,18 @@ struct AppsTorrentSourceTests {
             bundleURL: URL(fileURLWithPath: "/Applications/Unknown.app")
         )
 
-        let candidate = try await source.checkForUpdate(for: application)
+        await #expect(throws: AppsTorrentApplicationResolver.ResolverError.noMatch) {
+            try await source.checkForUpdate(for: application)
+        }
+    }
 
-        #expect(candidate == nil)
+    private func makeApplication(version: String) -> InstalledApplication {
+        InstalledApplication(
+            id: ApplicationIdentity(bundleIdentifier: "com.parallels.desktop.console"),
+            name: "Parallels Desktop",
+            version: SoftwareVersion(version),
+            bundleURL: URL(fileURLWithPath: "/Applications/Parallels Desktop.app")
+        )
     }
 
     private struct StubPageProvider: AppsTorrentPageProviding {
@@ -57,6 +109,14 @@ struct AppsTorrentSourceTests {
                 throw TestError.missingPage
             }
             return page
+        }
+    }
+
+    private struct StubSearchProvider: AppsTorrentSearchProviding {
+        let results: [AppsTorrentSearchResult]
+
+        func search(for query: String) async throws -> [AppsTorrentSearchResult] {
+            results
         }
     }
 
