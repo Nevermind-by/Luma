@@ -4,6 +4,8 @@ import WebKit
 
 @MainActor
 final class AppsTorrentBrowserSession: NSObject, ObservableObject {
+    static let shared = AppsTorrentBrowserSession()
+
     enum State: Equatable {
         case idle
         case loading(URL)
@@ -12,10 +14,16 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
         case processTerminated
     }
 
+    private struct PendingCapture {
+        let url: URL
+        let continuation: CheckedContinuation<String, Error>
+    }
+
     @Published private(set) var state: State = .idle
 
     let webView: WKWebView
-    private var continuation: CheckedContinuation<String, Error>?
+    private var pendingCaptures: [PendingCapture] = []
+    private var activeCapture: PendingCapture?
     private var loadedURL: URL?
 
     override init() {
@@ -40,40 +48,56 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
         webView.reload()
     }
 
-    func captureHTML() async throws -> String {
-        guard loadedURL != nil else {
-            throw BrowserError.pageNotLoaded
+    func loadAndCaptureHTML(at url: URL) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            pendingCaptures.append(
+                PendingCapture(url: url, continuation: continuation)
+            )
+            processNextCaptureIfNeeded()
         }
+    }
 
-        return try await withCheckedThrowingContinuation { continuation in
-            self.continuation = continuation
-            webView.evaluateJavaScript("document.documentElement.outerHTML") { [weak self] value, error in
-                guard let self else { return }
+    private func processNextCaptureIfNeeded() {
+        guard activeCapture == nil, !pendingCaptures.isEmpty else { return }
 
+        let request = pendingCaptures.removeFirst()
+        activeCapture = request
+        loadedURL = request.url
+        state = .loading(request.url)
+        webView.load(URLRequest(url: request.url))
+    }
+
+    private func finishActiveCapture(with result: Result<String, Error>) {
+        guard let activeCapture else { return }
+        self.activeCapture = nil
+        activeCapture.continuation.resume(with: result)
+        processNextCaptureIfNeeded()
+    }
+
+    private func captureCurrentHTML() {
+        webView.evaluateJavaScript("document.documentElement.outerHTML") { [weak self] value, error in
+            guard let self else { return }
+
+            Task { @MainActor in
                 if let error {
-                    self.resume(with: .failure(error))
+                    self.finishActiveCapture(with: .failure(error))
                     return
                 }
 
                 guard let html = value as? String else {
-                    self.resume(with: .failure(BrowserError.invalidHTML))
+                    self.finishActiveCapture(with: .failure(BrowserError.invalidHTML))
                     return
                 }
 
-                self.resume(with: .success(html))
+                self.finishActiveCapture(with: .success(html))
             }
         }
-    }
-
-    private func resume(with result: Result<String, Error>) {
-        guard let continuation else { return }
-        self.continuation = nil
-        continuation.resume(with: result)
     }
 
     enum BrowserError: Error, LocalizedError, Equatable {
         case pageNotLoaded
         case invalidHTML
+        case processTerminated
 
         var errorDescription: String? {
             switch self {
@@ -81,6 +105,8 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
                 return "The AppsTorrent page is not loaded yet."
             case .invalidHTML:
                 return "The browser did not return page HTML."
+            case .processTerminated:
+                return "The AppsTorrent browser process terminated."
             }
         }
     }
@@ -95,6 +121,10 @@ extension AppsTorrentBrowserSession: WKNavigationDelegate {
             guard let self, let url = webView.url else { return }
             self.loadedURL = url
             self.state = .ready(url)
+
+            if self.activeCapture != nil {
+                self.captureCurrentHTML()
+            }
         }
     }
 
@@ -105,6 +135,7 @@ extension AppsTorrentBrowserSession: WKNavigationDelegate {
     ) {
         Task { @MainActor [weak self] in
             self?.state = .failed(error.localizedDescription)
+            self?.finishActiveCapture(with: .failure(error))
         }
     }
 
@@ -115,12 +146,15 @@ extension AppsTorrentBrowserSession: WKNavigationDelegate {
     ) {
         Task { @MainActor [weak self] in
             self?.state = .failed(error.localizedDescription)
+            self?.finishActiveCapture(with: .failure(error))
         }
     }
 
     nonisolated func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         Task { @MainActor [weak self] in
-            self?.state = .processTerminated
+            guard let self else { return }
+            self.state = .processTerminated
+            self.finishActiveCapture(with: .failure(BrowserError.processTerminated))
         }
     }
 }
