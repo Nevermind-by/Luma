@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 nonisolated struct AppsTorrentApplicationResolver: Sendable {
     enum ResolverError: Error, Equatable {
