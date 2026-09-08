@@ -25,16 +25,29 @@ nonisolated struct AppsTorrentPageParser: Sendable {
             throw ParserError.missingVersion
         }
 
+        let titleValue = title.decodedHTML.trimmingCharacters(in: .whitespacesAndNewlines)
         let versionValue = version.trimmingCharacters(in: .whitespacesAndNewlines)
         let block = try currentReleaseBlock(html: html, version: versionValue)
         let downloadOptions = try parseDownloadOptions(from: block)
 
         return AppsTorrentRelease(
-            title: title.decodedHTML,
+            title: titleValue,
             version: SoftwareVersion(versionValue),
             pageURL: pageURL,
+            distributionVariant: distributionVariant(title: titleValue, version: versionValue),
             downloadOptions: downloadOptions
         )
+    }
+
+    private func distributionVariant(title: String, version: String) -> AppsTorrentDistributionVariant {
+        let markerPattern = #"\[\s*MAS\s*\]"#
+
+        if title.range(of: markerPattern, options: [.regularExpression, .caseInsensitive]) != nil
+            || version.range(of: markerPattern, options: [.regularExpression, .caseInsensitive]) != nil {
+            return .mas
+        }
+
+        return .standard
     }
 
     private func currentReleaseBlock(html: String, version: String) throws -> String {
