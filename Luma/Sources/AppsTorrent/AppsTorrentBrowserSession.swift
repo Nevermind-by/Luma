@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import WebKit
 
@@ -19,8 +20,6 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
     override init() {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
-        let processPool = WKProcessPool()
-        configuration.processPool = processPool
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
 
         self.webView = WKWebView(frame: .zero, configuration: configuration)
@@ -35,7 +34,11 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
     }
 
     func captureHTML() async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
+        guard loadedURL != nil else {
+            throw BrowserError.pageNotLoaded
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
             self.continuation = continuation
             webView.evaluateJavaScript("document.documentElement.outerHTML") { [weak self] value, error in
                 guard let self else { return }
@@ -53,13 +56,6 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
                 self.resume(with: .success(html))
             }
         }
-    }
-
-    func finishChallenge() async throws -> String {
-        guard case .loading = state || state == .ready(loadedURL ?? URL(string: "about:blank")!) else {
-            throw BrowserError.pageNotLoaded
-        }
-        return try await captureHTML()
     }
 
     private func resume(with result: Result<String, Error>) {
