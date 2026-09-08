@@ -1,6 +1,6 @@
 import Foundation
 
-struct InstalledApplication: Identifiable, Hashable, Sendable {
+nonisolated struct InstalledApplication: Identifiable, Hashable, Sendable {
     let id: ApplicationIdentity
     let name: String
     let version: SoftwareVersion
