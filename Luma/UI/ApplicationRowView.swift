@@ -7,6 +7,7 @@ struct ApplicationRowView: View {
     let isUpdateCheckEnabled: Bool
     let onCheck: () -> Void
     let onDownload: () -> Void
+    let onInstall: () -> Void
     let onShowDownloadedFile: () -> Void
 
     var body: some View {
@@ -44,7 +45,7 @@ struct ApplicationRowView: View {
             Spacer(minLength: 12)
 
             updateStatusView
-                .frame(minWidth: 180, alignment: .trailing)
+                .frame(minWidth: 210, alignment: .trailing)
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle())
@@ -165,18 +166,40 @@ struct ApplicationRowView: View {
                 Text(preparedUpdate.version.rawValue)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
-                Button("Show in Finder") {
-                    onShowDownloadedFile()
+                HStack(spacing: 6) {
+                    Button("Install Update") {
+                        onInstall()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+
+                    Button("Show in Finder") {
+                        onShowDownloadedFile()
+                    }
+                    .controlSize(.small)
                 }
-                .controlSize(.small)
             }
+
+        case .installing(let version):
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Installing \(version.rawValue)…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+        case .installed(let version):
+            Label("Installed \(version.rawValue)", systemImage: "checkmark.circle.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.tint)
 
         case .failed(let message):
             Text(message)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.trailing)
-                .frame(maxWidth: 260, alignment: .trailing)
+                .frame(maxWidth: 280, alignment: .trailing)
         }
     }
 
