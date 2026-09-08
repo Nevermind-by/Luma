@@ -48,12 +48,12 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
             }
         }
 
-        switch artifactURL.pathExtension.lowercased() {
-        case "zip":
+        switch artifactFormat(for: artifactURL) {
+        case .zip:
             try extractZip(artifactURL, to: stagingDirectory)
-        case "dmg":
+        case .dmg:
             try extractDMG(artifactURL, to: stagingDirectory)
-        default:
+        case .unknown:
             throw InspectionError.unsupportedArtifact
         }
 
@@ -96,6 +96,65 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
             bundleIdentifier: actualIdentifier,
             stagingDirectoryURL: stagingDirectory
         )
+    }
+
+    private enum ArtifactFormat {
+        case zip
+        case dmg
+        case unknown
+    }
+
+    private func artifactFormat(for artifactURL: URL) -> ArtifactFormat {
+        switch artifactURL.pathExtension.lowercased() {
+        case "zip":
+            return .zip
+        case "dmg":
+            return .dmg
+        default:
+            break
+        }
+
+        if hasZipSignature(at: artifactURL) {
+            return .zip
+        }
+
+        if isDiskImage(at: artifactURL) {
+            return .dmg
+        }
+
+        return .unknown
+    }
+
+    private func hasZipSignature(at url: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else {
+            return false
+        }
+        defer { try? handle.close() }
+
+        guard let header = try? handle.read(upToCount: 4), header.count >= 4 else {
+            return false
+        }
+
+        return header[0] == 0x50
+            && header[1] == 0x4B
+            && header[2] == 0x03
+            && (header[3] == 0x04 || header[3] == 0x05 || header[3] == 0x06)
+    }
+
+    private func isDiskImage(at url: URL) -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+        process.arguments = ["imageinfo", url.path]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
     }
 
     private func extractZip(_ archive: URL, to directory: URL) throws {
