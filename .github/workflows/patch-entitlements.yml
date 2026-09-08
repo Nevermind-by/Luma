@@ -1,0 +1,62 @@
+name: Patch App Sandbox Entitlements
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch Luma entitlements
+        shell: python3
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path("Luma.xcodeproj/project.pbxproj")
+          text = path.read_text()
+
+          if "CODE_SIGN_ENTITLEMENTS = Luma/Luma.entitlements;" in text:
+              print("Entitlements setting already present; nothing to do.")
+              raise SystemExit(0)
+
+          marker = "PRODUCT_BUNDLE_IDENTIFIER = by.nevermind.Luma;"
+          replacement = "CODE_SIGN_ENTITLEMENTS = Luma/Luma.entitlements;\n\t\t\t\t" + marker
+
+          if marker not in text:
+              raise SystemExit("Could not find the Luma application build settings.")
+
+          text = text.replace(marker, replacement, 1)
+
+          # The project contains Debug and Release configurations for the app.
+          # The first occurrence above is Debug; patch the next matching app config too.
+          if text.count(marker) != 1:
+              raise SystemExit("Unexpected project structure: expected exactly one remaining Luma bundle identifier.")
+
+          text = text.replace(marker, replacement, 1)
+          path.write_text(text)
+          print("Patched CODE_SIGN_ENTITLEMENTS for Luma Debug and Release.")
+
+      - name: Commit and remove migration workflow
+        shell: bash
+        run: |
+          if git diff --quiet -- Luma.xcodeproj/project.pbxproj; then
+            echo "No project changes required."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Luma.xcodeproj/project.pbxproj
+          git add .github/workflows/patch-entitlements.yml
+          git rm .github/workflows/patch-entitlements.yml
+          git commit -m "Wire App Sandbox entitlements into Luma target"
+          git push
