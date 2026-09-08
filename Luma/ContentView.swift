@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = ApplicationLibraryViewModel()
+    @State private var isAppsTorrentBrowserPresented = false
 
     var body: some View {
         NavigationStack {
@@ -44,6 +45,13 @@ struct ContentView: View {
                     .help("Check installed applications for updates")
 
                     Button {
+                        isAppsTorrentBrowserPresented = true
+                    } label: {
+                        Label("Open AppsTorrent", systemImage: "safari")
+                    }
+                    .help("Open AppsTorrent in Luma's browser session")
+
+                    Button {
                         Task {
                             await viewModel.load()
                         }
@@ -58,6 +66,11 @@ struct ContentView: View {
         .frame(minWidth: 760, minHeight: 520)
         .task {
             await viewModel.load()
+        }
+        .sheet(isPresented: $isAppsTorrentBrowserPresented) {
+            AppsTorrentBrowserView(
+                url: URL(string: "https://appstorrent.ru")!
+            )
         }
     }
 }
