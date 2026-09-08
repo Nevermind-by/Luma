@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct ApplicationRowView: View {
@@ -11,72 +10,94 @@ struct ApplicationRowView: View {
     let onShowDownloadedFile: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: application.bundleURL.path))
-                .resizable()
-                .frame(width: 40, height: 40)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        HStack(spacing: 14) {
+            ApplicationIconView(applicationURL: application.bundleURL, size: 48)
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
                     Text(application.name)
                         .font(.headline)
+                        .lineLimit(1)
 
                     if application.installationSource == .appStore {
                         Text("App Store")
                             .font(.caption2.weight(.medium))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
                             .background(.quaternary, in: Capsule())
                     }
                 }
 
-                Text("Version \(application.version.rawValue)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text("Version \(application.version.rawValue)")
+                    Text("•")
+                    Text(application.id.bundleIdentifier)
+                        .lineLimit(1)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .truncationMode(.middle)
             }
+            .frame(minWidth: 180, alignment: .leading)
 
-            Spacer()
+            Spacer(minLength: 12)
 
             updateStatusView
+                .frame(minWidth: 150, alignment: .trailing)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
     }
 
     @ViewBuilder
     private var updateStatusView: some View {
         switch updateState {
         case .notChecked:
-            Button("Check") {
+            Button {
                 onCheck()
+            } label: {
+                Label("Check", systemImage: "arrow.triangle.2.circlepath")
             }
             .controlSize(.small)
             .disabled(!isUpdateCheckEnabled)
             .help(isUpdateCheckEnabled ? "Check AppsTorrent for an update" : "Sign in to AppsTorrent first")
 
         case .checking:
-            ProgressView()
-                .controlSize(.small)
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Checking…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
         case .upToDate:
             Label("Up to date", systemImage: "checkmark.circle.fill")
-                .font(.caption)
+                .font(.subheadline.weight(.medium))
                 .foregroundStyle(.secondary)
 
         case .updateAvailable(let candidate):
-            VStack(alignment: .trailing, spacing: 6) {
-                VStack(alignment: .trailing, spacing: 2) {
-                    Label("Update available", systemImage: "arrow.down.circle.fill")
-                        .font(.caption)
-                    HStack(spacing: 5) {
-                        Text(candidate.version.rawValue)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+            VStack(alignment: .trailing, spacing: 7) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.down.circle.fill")
+                    Text("Update available")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundStyle(.tint)
 
-                        if let variant = candidate.distributionVariant {
-                            Text(distributionVariantLabel(variant))
-                                .font(.caption2.weight(.medium))
-                        }
+                HStack(spacing: 6) {
+                    Text(candidate.version.rawValue)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+
+                    if let variant = candidate.distributionVariant,
+                       variant != .unknown {
+                        Text(distributionVariantLabel(variant))
+                            .font(.caption2.weight(.medium))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(.tint.opacity(0.10), in: Capsule())
                     }
                 }
 
@@ -85,7 +106,7 @@ struct ApplicationRowView: View {
 
         case .unavailable:
             HStack(spacing: 8) {
-                Text("Unavailable")
+                Label("Unavailable", systemImage: "questionmark.circle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -114,14 +135,17 @@ struct ApplicationRowView: View {
     private var downloadAction: some View {
         switch downloadState {
         case .notStarted:
-            Button("Update") {
+            Button {
                 onDownload()
+            } label: {
+                Label("Update", systemImage: "arrow.down.circle")
             }
+            .buttonStyle(.borderedProminent)
             .controlSize(.small)
 
         case .downloading(let progress):
             if let fraction = progress.fractionCompleted {
-                HStack(spacing: 6) {
+                HStack(spacing: 8) {
                     ProgressView(value: fraction)
                         .frame(width: 90)
                     Text("\(Int(fraction * 100))%")
@@ -144,7 +168,7 @@ struct ApplicationRowView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.trailing)
-                .frame(maxWidth: 220, alignment: .trailing)
+                .frame(maxWidth: 240, alignment: .trailing)
         }
     }
 
