@@ -41,6 +41,13 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
             .appendingPathComponent("Luma-Update-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: stagingDirectory, withIntermediateDirectories: true)
 
+        var keepStagingDirectory = false
+        defer {
+            if !keepStagingDirectory {
+                try? FileManager.default.removeItem(at: stagingDirectory)
+            }
+        }
+
         switch artifactURL.pathExtension.lowercased() {
         case "zip":
             try extractZip(artifactURL, to: stagingDirectory)
@@ -80,12 +87,14 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
             )
         }
 
+        keepStagingDirectory = true
         return PreparedUpdate(
             application: expectedApplication,
             version: expectedVersion,
             artifactURL: artifactURL,
             applicationURL: applicationURL,
-            bundleIdentifier: actualIdentifier
+            bundleIdentifier: actualIdentifier,
+            stagingDirectoryURL: stagingDirectory
         )
     }
 
