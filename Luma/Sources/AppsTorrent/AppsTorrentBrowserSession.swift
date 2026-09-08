@@ -289,7 +289,7 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
         completionHandler: @escaping (URL?) -> Void
     ) {
         Task { @MainActor [weak self] in
-            guard let self, let activeDownload else {
+            guard let self, let activeDownload = self.activeDownload else {
                 completionHandler(nil)
                 return
             }
@@ -308,10 +308,10 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
 
     nonisolated func downloadDidFinish(_ download: WKDownload) {
         Task { @MainActor [weak self] in
-            guard let self, self.activeDownload else { return }
+            guard let self, self.activeDownload != nil else { return }
             let destination = self.activeDownloadDestination ?? self.uniqueDestinationURL(
-                filename: self.activeDownload.url.lastPathComponent.isEmpty ? "Luma-Download" : self.activeDownload.url.lastPathComponent,
-                directory: self.activeDownload.destinationDirectory
+                filename: self.activeDownload?.url.lastPathComponent.isEmpty == false ? self.activeDownload!.url.lastPathComponent : "Luma-Download",
+                directory: self.activeDownload!.destinationDirectory
             )
             self.finishActiveDownload(with: .success(destination))
         }
