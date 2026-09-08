@@ -1,10 +1,10 @@
 import Foundation
 
-protocol ApplicationScanning: Sendable {
+nonisolated protocol ApplicationScanning: Sendable {
     func scan() async -> [InstalledApplication]
 }
 
-struct ApplicationScanner: ApplicationScanning {
+nonisolated struct ApplicationScanner: ApplicationScanning {
     private let fileManager: FileManager
     private let roots: [URL]
 
