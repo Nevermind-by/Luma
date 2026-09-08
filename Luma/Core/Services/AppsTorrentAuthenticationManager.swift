@@ -10,6 +10,7 @@ final class AppsTorrentAuthenticationManager: ObservableObject {
 
     private let defaults: UserDefaults
     private let session: AppsTorrentBrowserSession
+    private let appsTorrentURL = URL(string: "https://appstorrent.ru")!
 
     @Published private(set) var isLoginCompleted: Bool
 
@@ -27,6 +28,29 @@ final class AppsTorrentAuthenticationManager: ObservableObject {
         isLoginCompleted = true
     }
 
+    func refreshLoginState() async -> Bool {
+        guard defaults.bool(forKey: Keys.loginCompleted) else {
+            isLoginCompleted = false
+            return false
+        }
+
+        let cookies = await session.cookies(for: appsTorrentURL)
+        let now = Date()
+        let hasLiveSessionCookie = cookies.contains { cookie in
+            guard !cookie.isExpired(at: now) else { return false }
+            return !cookie.value.isEmpty
+        }
+
+        if !hasLiveSessionCookie {
+            defaults.removeObject(forKey: Keys.loginCompleted)
+            isLoginCompleted = false
+            return false
+        }
+
+        isLoginCompleted = true
+        return true
+    }
+
     func cookies(for url: URL) async -> [HTTPCookie] {
         await session.cookies(for: url)
     }
@@ -35,5 +59,12 @@ final class AppsTorrentAuthenticationManager: ObservableObject {
         await session.clearAppsTorrentData()
         defaults.removeObject(forKey: Keys.loginCompleted)
         isLoginCompleted = false
+    }
+}
+
+private extension HTTPCookie {
+    func isExpired(at date: Date) -> Bool {
+        guard let expiresDate else { return false }
+        return expiresDate <= date
     }
 }
