@@ -2,22 +2,20 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var viewModel = ApplicationLibraryViewModel()
-    @StateObject private var authenticationManager = AppsTorrentAuthenticationManager()
     @State private var isAppsTorrentBrowserPresented = false
+    @State private var searchText = ""
 
-    var body: some View {
-        Group {
-            if authenticationManager.isLoginCompleted {
-                applicationLibrary
-            } else {
-                AppsTorrentLoginView {
-                    authenticationManager.markLoginCompleted()
-                }
-            }
+    private var filteredApplications: [InstalledApplication] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return viewModel.applications }
+
+        return viewModel.applications.filter {
+            $0.name.localizedCaseInsensitiveContains(query)
+                || $0.id.bundleIdentifier.localizedCaseInsensitiveContains(query)
         }
     }
 
-    private var applicationLibrary: some View {
+    var body: some View {
         NavigationStack {
             Group {
                 if viewModel.isScanning && viewModel.applications.isEmpty {
@@ -30,66 +28,54 @@ struct ContentView: View {
                         description: Text("Luma could not find any applications in the standard Applications folders.")
                     )
                 } else {
-                    List(viewModel.applications) { application in
-                        ApplicationRowView(
-                            application: application,
-                            updateState: viewModel.updateStates[application.id] ?? .notChecked,
-                            downloadState: viewModel.downloadStates[application.id] ?? .notStarted,
-                            onCheck: {
-                                Task {
-                                    await viewModel.checkForUpdate(for: application)
+                    List {
+                        Section {
+                            AppsTorrentConnectionCard(
+                                connection: viewModel.appsTorrentConnection,
+                                onSignIn: {
+                                    isAppsTorrentBrowserPresented = true
+                                },
+                                onSignOut: {
+                                    Task {
+                                        await viewModel.logoutAppsTorrent()
+                                    }
                                 }
-                            },
-                            onDownload: {
-                                Task {
-                                    await viewModel.downloadUpdate(for: application)
-                                }
-                            },
-                            onShowDownloadedFile: {
-                                viewModel.showDownloadedFile(for: application)
+                            )
+                        }
+
+                        Section {
+                            ForEach(filteredApplications) { application in
+                                ApplicationRowView(
+                                    application: application,
+                                    updateState: viewModel.updateStates[application.id] ?? .notChecked,
+                                    downloadState: viewModel.downloadStates[application.id] ?? .notStarted,
+                                    isUpdateCheckEnabled: viewModel.canCheckAppsTorrent,
+                                    onCheck: {
+                                        Task {
+                                            await viewModel.checkForUpdate(for: application)
+                                        }
+                                    },
+                                    onDownload: {
+                                        Task {
+                                            await viewModel.downloadUpdate(for: application)
+                                        }
+                                    },
+                                    onShowDownloadedFile: {
+                                        viewModel.showDownloadedFile(for: application)
+                                    }
+                                )
                             }
-                        )
+                        } header: {
+                            Text("Applications")
+                        }
                     }
                     .listStyle(.inset)
+                    .searchable(text: $searchText, placement: .toolbar, prompt: "Search applications")
                 }
             }
             .navigationTitle("Applications")
             .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button {
-                        Task {
-                            await viewModel.checkForUpdates()
-                        }
-                    } label: {
-                        if viewModel.isCheckingUpdates {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Label("Check for Updates", systemImage: "arrow.triangle.2.circlepath")
-                        }
-                    }
-                    .disabled(viewModel.isCheckingUpdates || viewModel.isScanning || viewModel.applications.isEmpty)
-                    .help("Check all installed applications for updates")
-
-                    Button {
-                        isAppsTorrentBrowserPresented = true
-                    } label: {
-                        Label("Open AppsTorrent", systemImage: "safari")
-                    }
-                    .help("Open AppsTorrent in Luma's browser session")
-
-                    Menu {
-                        Button("Sign Out of AppsTorrent") {
-                            Task {
-                                await authenticationManager.logout()
-                                await viewModel.load()
-                            }
-                        }
-                    } label: {
-                        Label("AppsTorrent", systemImage: "person.crop.circle")
-                    }
-                    .help("Manage the AppsTorrent browser session")
-
+                ToolbarItem(placement: .primaryAction) {
                     Button {
                         Task {
                             await viewModel.load()
@@ -109,7 +95,9 @@ struct ContentView: View {
         .sheet(isPresented: $isAppsTorrentBrowserPresented) {
             AppsTorrentBrowserView(
                 url: URL(string: "https://appstorrent.ru")!
-            )
+            ) {
+                viewModel.markAppsTorrentLoginCompleted()
+            }
         }
     }
 }
