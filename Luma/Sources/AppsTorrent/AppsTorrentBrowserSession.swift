@@ -24,7 +24,9 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
     let webView: WKWebView
     private var pendingCaptures: [PendingCapture] = []
     private var activeCapture: PendingCapture?
+    private var activeTimeoutTask: Task<Void, Never>?
     private var loadedURL: URL?
+    private let captureTimeoutNanoseconds: UInt64 = 30_000_000_000
 
     override init() {
         let configuration = WKWebViewConfiguration()
@@ -34,6 +36,10 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
         self.webView = WKWebView(frame: .zero, configuration: configuration)
         super.init()
         webView.navigationDelegate = self
+    }
+
+    deinit {
+        activeTimeoutTask?.cancel()
     }
 
     func load(_ url: URL) {
@@ -64,12 +70,25 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
         activeCapture = request
         loadedURL = request.url
         state = .loading(request.url)
+
+        activeTimeoutTask?.cancel()
+        activeTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: self?.captureTimeoutNanoseconds ?? 30_000_000_000)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                self?.finishActiveCapture(with: .failure(BrowserError.timeout))
+            }
+        }
+
         webView.load(URLRequest(url: request.url))
     }
 
     private func finishActiveCapture(with result: Result<String, Error>) {
         guard let activeCapture else { return }
         self.activeCapture = nil
+        activeTimeoutTask?.cancel()
+        activeTimeoutTask = nil
         activeCapture.continuation.resume(with: result)
         processNextCaptureIfNeeded()
     }
@@ -98,6 +117,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
         case pageNotLoaded
         case invalidHTML
         case processTerminated
+        case timeout
 
         var errorDescription: String? {
             switch self {
@@ -107,6 +127,8 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
                 return "The browser did not return page HTML."
             case .processTerminated:
                 return "The AppsTorrent browser process terminated."
+            case .timeout:
+                return "The AppsTorrent page did not finish loading within 30 seconds."
             }
         }
     }
