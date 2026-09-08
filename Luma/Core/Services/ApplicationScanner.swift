@@ -1,10 +1,10 @@
 import Foundation
 
-protocol ApplicationScanning {
+nonisolated protocol ApplicationScanning {
     func scan() async -> [InstalledApplication]
 }
 
-struct ApplicationScanner: ApplicationScanning {
+nonisolated struct ApplicationScanner: ApplicationScanning {
     private let roots: [URL]
 
     init(
