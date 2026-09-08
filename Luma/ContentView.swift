@@ -85,6 +85,11 @@ struct ContentView: View {
         }
         .navigationSplitViewColumnWidth(min: 210, ideal: 230, max: 270)
         .frame(minWidth: 920, minHeight: 620)
+        .toolbar {
+            ToolbarItem {
+                SettingsLink()
+            }
+        }
         .sheet(isPresented: $isAppsTorrentBrowserPresented) {
             AppsTorrentBrowserView(
                 url: URL(string: "https://appstorrent.ru")!,
