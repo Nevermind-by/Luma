@@ -87,7 +87,8 @@ struct ContentView: View {
         .frame(minWidth: 920, minHeight: 620)
         .sheet(isPresented: $isAppsTorrentBrowserPresented) {
             AppsTorrentBrowserView(
-                url: URL(string: "https://appstorrent.ru")!
+                url: URL(string: "https://appstorrent.ru")!,
+                session: AppsTorrentBrowserSession.shared
             ) {
                 viewModel.markAppsTorrentLoginCompleted()
             }
