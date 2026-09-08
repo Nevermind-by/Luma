@@ -22,6 +22,11 @@ struct ContentView: View {
                             application: application,
                             updateState: viewModel.updateStates[application.id] ?? .notChecked,
                             downloadState: viewModel.downloadStates[application.id] ?? .notStarted,
+                            onCheck: {
+                                Task {
+                                    await viewModel.checkForUpdate(for: application)
+                                }
+                            },
                             onDownload: {
                                 Task {
                                     await viewModel.downloadUpdate(for: application)
@@ -51,7 +56,7 @@ struct ContentView: View {
                         }
                     }
                     .disabled(viewModel.isCheckingUpdates || viewModel.isScanning || viewModel.applications.isEmpty)
-                    .help("Check installed applications for updates")
+                    .help("Check all installed applications for updates")
 
                     Button {
                         isAppsTorrentBrowserPresented = true
