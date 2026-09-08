@@ -9,6 +9,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
     @Published private(set) var downloadStates: [ApplicationIdentity: ApplicationDownloadState] = [:]
     @Published private(set) var isScanning = false
     @Published private(set) var isCheckingUpdates = false
+    @Published private(set) var appsTorrentConnection: UpdateSourceConnection
 
     private let scanner: any ApplicationScanning
     private let updateCoordinator: any ApplicationUpdateCoordinating
@@ -29,6 +30,15 @@ final class ApplicationLibraryViewModel: ObservableObject {
         self.updateCoordinator = updateCoordinator
         self.downloadManager = downloadManager
         self.authenticationManager = authenticationManager ?? AppsTorrentAuthenticationManager()
+        self.appsTorrentConnection = UpdateSourceConnection(
+            id: "appstorrent",
+            name: "AppsTorrent",
+            state: self.authenticationManager.isLoginCompleted ? .connected : .signInRequired
+        )
+    }
+
+    var canCheckAppsTorrent: Bool {
+        appsTorrentConnection.state == .connected
     }
 
     func load() async {
@@ -43,7 +53,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
     }
 
     func checkForUpdates() async {
-        guard !isCheckingUpdates, !applications.isEmpty else { return }
+        guard canCheckAppsTorrent, !isCheckingUpdates, !applications.isEmpty else { return }
 
         isCheckingUpdates = true
         defer { isCheckingUpdates = false }
@@ -59,7 +69,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
     }
 
     func checkForUpdate(for application: InstalledApplication) async {
-        guard !isCheckingUpdates else { return }
+        guard canCheckAppsTorrent, !isCheckingUpdates else { return }
 
         isCheckingUpdates = true
         updateStates[application.id] = .checking
@@ -74,8 +84,28 @@ final class ApplicationLibraryViewModel: ObservableObject {
         }
     }
 
+    func markAppsTorrentLoginCompleted() {
+        authenticationManager.markLoginCompleted()
+        appsTorrentConnection = UpdateSourceConnection(
+            id: "appstorrent",
+            name: "AppsTorrent",
+            state: .connected
+        )
+    }
+
+    func logoutAppsTorrent() async {
+        await authenticationManager.logout()
+        appsTorrentConnection = UpdateSourceConnection(
+            id: "appstorrent",
+            name: "AppsTorrent",
+            state: .signInRequired
+        )
+        updateStates = [:]
+        downloadStates = [:]
+    }
+
     func downloadUpdate(for application: InstalledApplication) async {
-        guard case .updateAvailable(let candidate)? = updateStates[application.id] else {
+        guard canCheckAppsTorrent, case .updateAvailable(let candidate)? = updateStates[application.id] else {
             return
         }
 
