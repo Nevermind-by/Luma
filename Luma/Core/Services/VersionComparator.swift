@@ -1,7 +1,7 @@
 import Foundation
 
-struct VersionComparator: Sendable {
-    enum Result: Sendable, Equatable {
+nonisolated struct VersionComparator: Sendable {
+    nonisolated enum Result: Sendable, Equatable {
         case orderedAscending
         case orderedSame
         case orderedDescending
