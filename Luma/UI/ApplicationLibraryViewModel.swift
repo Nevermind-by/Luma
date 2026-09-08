@@ -54,6 +54,22 @@ final class ApplicationLibraryViewModel: ObservableObject {
         applications = await scanner.scan()
         updateStates = [:]
         downloadStates = [:]
+        await refreshAppsTorrentConnection()
+    }
+
+    func refreshAppsTorrentConnection() async {
+        appsTorrentConnection = UpdateSourceConnection(
+            id: "appstorrent",
+            name: "AppsTorrent",
+            state: .checking
+        )
+
+        let isConnected = await authenticationManager.refreshLoginState()
+        appsTorrentConnection = UpdateSourceConnection(
+            id: "appstorrent",
+            name: "AppsTorrent",
+            state: isConnected ? .connected : .signInRequired
+        )
     }
 
     func checkForUpdates() async {
