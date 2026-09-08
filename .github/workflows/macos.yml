@@ -1,0 +1,34 @@
+name: macOS
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          xcodebuild \
+            -project Luma.xcodeproj \
+            -scheme Luma \
+            -destination 'platform=macOS' \
+            build
+
+      - name: Test
+        run: |
+          xcodebuild \
+            -project Luma.xcodeproj \
+            -scheme Luma \
+            -destination 'platform=macOS' \
+            test
