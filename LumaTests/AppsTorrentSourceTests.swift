@@ -15,7 +15,7 @@ struct AppsTorrentSourceTests {
 
         let provider = StubPageProvider(pages: [pageURL: html])
         let source = AppsTorrentSource(
-            pageURLsByBundleIdentifier: ["com.parallels.desktop.console": pageURL],
+            pageURLsByBundleIdentifier: ["com.example.test": pageURL],
             pageProvider: provider,
             searchProvider: StubSearchProvider(results: [])
         )
