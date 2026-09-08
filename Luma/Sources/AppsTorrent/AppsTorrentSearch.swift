@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 nonisolated struct AppsTorrentSearchResult: Hashable, Sendable {
     let title: String
