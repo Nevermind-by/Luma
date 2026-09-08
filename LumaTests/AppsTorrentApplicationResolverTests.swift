@@ -26,6 +26,38 @@ struct AppsTorrentApplicationResolverTests {
         #expect(try await resolver.resolve(application: application) == appURL)
     }
 
+    @Test func prefersMASForAppStoreInstallation() async throws {
+        let masURL = URL(string: "https://appstorrent.ru/app-mas.html")!
+        let standardURL = URL(string: "https://appstorrent.ru/app.html")!
+        let provider = StubSearchProvider(results: [
+            AppsTorrentSearchResult(title: "Test App", url: standardURL),
+            AppsTorrentSearchResult(title: "Test App [MAS]", url: masURL)
+        ])
+        let resolver = AppsTorrentApplicationResolver(searchProvider: provider)
+        let application = makeApplication(
+            name: "Test App",
+            installationSource: .appStore
+        )
+
+        #expect(try await resolver.resolve(application: application) == masURL)
+    }
+
+    @Test func prefersStandardForDirectInstallation() async throws {
+        let masURL = URL(string: "https://appstorrent.ru/app-mas.html")!
+        let standardURL = URL(string: "https://appstorrent.ru/app.html")!
+        let provider = StubSearchProvider(results: [
+            AppsTorrentSearchResult(title: "Test App [MAS]", url: masURL),
+            AppsTorrentSearchResult(title: "Test App", url: standardURL)
+        ])
+        let resolver = AppsTorrentApplicationResolver(searchProvider: provider)
+        let application = makeApplication(
+            name: "Test App",
+            installationSource: .direct
+        )
+
+        #expect(try await resolver.resolve(application: application) == standardURL)
+    }
+
     @Test func rejectsAmbiguousMatches() async throws {
         let provider = StubSearchProvider(results: [
             AppsTorrentSearchResult(title: "Parallels Desktop 27", url: URL(string: "https://appstorrent.ru/one.html")!),
@@ -67,12 +99,16 @@ struct AppsTorrentApplicationResolverTests {
         #expect(results[0].url.absoluteString == "https://appstorrent.ru/61-parallels-desktop.html")
     }
 
-    private func makeApplication(name: String) -> InstalledApplication {
+    private func makeApplication(
+        name: String,
+        installationSource: ApplicationInstallationSource = .unknown
+    ) -> InstalledApplication {
         InstalledApplication(
             id: ApplicationIdentity(bundleIdentifier: "com.example.test"),
             name: name,
             version: SoftwareVersion("1.0"),
-            bundleURL: URL(fileURLWithPath: "/Applications/Test.app")
+            bundleURL: URL(fileURLWithPath: "/Applications/Test.app"),
+            installationSource: installationSource
         )
     }
 
