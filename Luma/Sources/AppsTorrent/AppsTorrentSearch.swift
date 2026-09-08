@@ -108,7 +108,7 @@ nonisolated struct AppsTorrentSearchParser: Sendable {
 }
 
 private extension String {
-    var decodedHTML: String {
+    nonisolated var decodedHTML: String {
         replacingOccurrences(of: "&amp;", with: "&")
             .replacingOccurrences(of: "&quot;", with: "\"")
             .replacingOccurrences(of: "&#39;", with: "'")
