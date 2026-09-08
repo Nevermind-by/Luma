@@ -13,6 +13,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
     private let scanner: any ApplicationScanning
     private let updateCoordinator: any ApplicationUpdateCoordinating
     private let downloadManager: any DownloadManaging
+    private let authenticationManager: AppsTorrentAuthenticationManager
 
     init(
         scanner: any ApplicationScanning = ApplicationScanner(),
@@ -21,11 +22,13 @@ final class ApplicationLibraryViewModel: ObservableObject {
                 sources: [AppsTorrentSource()]
             )
         ),
-        downloadManager: any DownloadManaging = DownloadManager()
+        downloadManager: any DownloadManaging = DownloadManager(),
+        authenticationManager: AppsTorrentAuthenticationManager = AppsTorrentAuthenticationManager()
     ) {
         self.scanner = scanner
         self.updateCoordinator = updateCoordinator
         self.downloadManager = downloadManager
+        self.authenticationManager = authenticationManager
     }
 
     func load() async {
@@ -85,6 +88,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
             return
         }
 
+        let cookies = await authenticationManager.cookies(for: option.url)
         downloadStates[application.id] = .downloading(
             DownloadProgress(bytesWritten: 0, totalBytes: nil)
         )
@@ -92,7 +96,8 @@ final class ApplicationLibraryViewModel: ObservableObject {
         do {
             let destinationURL = try await downloadManager.download(
                 option,
-                to: destinationDirectory
+                to: destinationDirectory,
+                cookies: cookies
             ) { [weak self] progress in
                 Task { @MainActor [weak self] in
                     self?.downloadStates[application.id] = .downloading(progress)
