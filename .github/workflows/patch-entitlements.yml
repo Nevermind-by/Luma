@@ -19,29 +19,34 @@ jobs:
         shell: python3
         run: |
           from pathlib import Path
-          import re
 
           path = Path("Luma.xcodeproj/project.pbxproj")
           text = path.read_text()
 
-          if "CODE_SIGN_ENTITLEMENTS = Luma/Luma.entitlements;" in text:
+          setting = "CODE_SIGN_ENTITLEMENTS = Luma/Luma.entitlements;"
+          if setting in text:
               print("Entitlements setting already present; nothing to do.")
               raise SystemExit(0)
 
           marker = "PRODUCT_BUNDLE_IDENTIFIER = by.nevermind.Luma;"
-          replacement = "CODE_SIGN_ENTITLEMENTS = Luma/Luma.entitlements;\n\t\t\t\t" + marker
+          positions = []
+          start = 0
+          while True:
+              index = text.find(marker, start)
+              if index == -1:
+                  break
+              positions.append(index)
+              start = index + len(marker)
 
-          if marker not in text:
-              raise SystemExit("Could not find the Luma application build settings.")
+          if len(positions) != 2:
+              raise SystemExit(f"Expected two Luma application configurations, found {len(positions)}.")
 
-          text = text.replace(marker, replacement, 1)
+          replacement = setting + "\n\t\t\t\t" + marker
+          first = positions[0]
+          second = positions[1]
+          text = text[:second] + replacement + text[second + len(marker):]
+          text = text[:first] + replacement + text[first + len(marker):]
 
-          # The project contains Debug and Release configurations for the app.
-          # The first occurrence above is Debug; patch the next matching app config too.
-          if text.count(marker) != 1:
-              raise SystemExit("Unexpected project structure: expected exactly one remaining Luma bundle identifier.")
-
-          text = text.replace(marker, replacement, 1)
           path.write_text(text)
           print("Patched CODE_SIGN_ENTITLEMENTS for Luma Debug and Release.")
 
@@ -56,7 +61,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Luma.xcodeproj/project.pbxproj
-          git add .github/workflows/patch-entitlements.yml
           git rm .github/workflows/patch-entitlements.yml
           git commit -m "Wire App Sandbox entitlements into Luma target"
           git push
