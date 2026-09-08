@@ -63,6 +63,45 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
         }
     }
 
+    func cookies(for url: URL) async -> [HTTPCookie] {
+        await withCheckedContinuation { continuation in
+            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
+                let host = url.host?.lowercased()
+                let matching = cookies.filter { cookie in
+                    guard let host else { return false }
+                    let domain = cookie.domain.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+                    return host == domain || host.hasSuffix(".\(domain)")
+                }
+                continuation.resume(returning: matching)
+            }
+        }
+    }
+
+    func clearAppsTorrentData() async {
+        let dataStore = webView.configuration.websiteDataStore
+        await withCheckedContinuation { continuation in
+            let types = WKWebsiteDataStore.allWebsiteDataTypes()
+            dataStore.fetchDataRecords(ofTypes: types) { records in
+                let matchingRecords = records.filter { record in
+                    let name = record.displayName.lowercased()
+                    return name.contains("appstorrent.ru")
+                }
+
+                guard !matchingRecords.isEmpty else {
+                    continuation.resume()
+                    return
+                }
+
+                dataStore.removeData(
+                    ofTypes: types,
+                    for: matchingRecords
+                ) {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+
     private func processNextCaptureIfNeeded() {
         guard activeCapture == nil, !pendingCaptures.isEmpty else { return }
 
