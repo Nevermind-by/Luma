@@ -15,6 +15,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
     private let scanner: any ApplicationScanning
     private let updateCoordinator: any ApplicationUpdateCoordinating
     private let downloadManager: any DownloadManaging
+    private let artifactInspector: any UpdateArtifactInspecting
     private let authenticationManager: AppsTorrentAuthenticationManager
     private let downloadDestinationStore: DownloadDestinationStore
 
@@ -26,12 +27,14 @@ final class ApplicationLibraryViewModel: ObservableObject {
             )
         ),
         downloadManager: any DownloadManaging = DownloadManager(),
+        artifactInspector: any UpdateArtifactInspecting = UpdateArtifactInspector(),
         authenticationManager: AppsTorrentAuthenticationManager? = nil,
         downloadDestinationStore: DownloadDestinationStore = DownloadDestinationStore()
     ) {
         self.scanner = scanner
         self.updateCoordinator = updateCoordinator
         self.downloadManager = downloadManager
+        self.artifactInspector = artifactInspector
         self.authenticationManager = authenticationManager ?? AppsTorrentAuthenticationManager()
         self.downloadDestinationStore = downloadDestinationStore
         self.appsTorrentConnection = UpdateSourceConnection(
@@ -39,7 +42,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
             name: "AppsTorrent",
             state: self.authenticationManager.isLoginCompleted ? .connected : .signInRequired
         )
-        self.downloadDirectoryURL = downloadDestinationStore.savedDirectory()
+        self.downloadDirectoryURL = downloadDestinationStore.savedDirectory() ?? Self.defaultDownloadDirectory()
     }
 
     var canCheckAppsTorrent: Bool {
@@ -59,6 +62,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
         applications = await scanner.scan()
         updateStates = [:]
         downloadStates = [:]
+        downloadDirectoryURL = downloadDestinationStore.savedDirectory() ?? Self.defaultDownloadDirectory()
         await refreshAppsTorrentConnection()
     }
 
@@ -140,8 +144,9 @@ final class ApplicationLibraryViewModel: ObservableObject {
         }
 
         let destinationDirectory: URL
-        if let savedDirectory = downloadDirectoryURL {
+        if let savedDirectory = downloadDestinationStore.savedDirectory() ?? Self.defaultDownloadDirectory() {
             destinationDirectory = savedDirectory
+            downloadDirectoryURL = savedDirectory
         } else {
             guard let selectedDirectory = await chooseDownloadDirectory() else {
                 return
@@ -153,8 +158,8 @@ final class ApplicationLibraryViewModel: ObservableObject {
 
         guard destinationDirectory.startAccessingSecurityScopedResource() else {
             downloadDestinationStore.clear()
-            downloadDirectoryURL = nil
-            downloadStates[application.id] = .failed("Luma could not access the saved download folder. Please choose it again.")
+            downloadDirectoryURL = Self.defaultDownloadDirectory()
+            downloadStates[application.id] = .failed("Luma could not access the download folder. Choose another folder in Settings.")
             return
         }
         defer {
@@ -177,7 +182,16 @@ final class ApplicationLibraryViewModel: ObservableObject {
                 }
             }
 
-            downloadStates[application.id] = .completed(destinationURL)
+            do {
+                let preparedUpdate = try await artifactInspector.inspect(
+                    artifactURL: destinationURL,
+                    expectedApplication: application.id,
+                    expectedVersion: candidate.version
+                )
+                downloadStates[application.id] = .readyToInstall(preparedUpdate)
+            } catch {
+                downloadStates[application.id] = .failed(error.localizedDescription)
+            }
         } catch {
             downloadStates[application.id] = .failed(error.localizedDescription)
         }
@@ -193,11 +207,19 @@ final class ApplicationLibraryViewModel: ObservableObject {
     }
 
     func showDownloadedFile(for application: InstalledApplication) {
-        guard case .completed(let url)? = downloadStates[application.id] else {
-            return
+        guard let state = downloadStates[application.id] else { return }
+
+        let url: URL?
+        switch state {
+        case .readyToInstall(let preparedUpdate):
+            url = preparedUpdate.artifactURL
+        default:
+            url = nil
         }
 
-        NSWorkspace.shared.activateFileViewerSelecting([url])
+        if let url {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
     }
 
     private func applyUpdateResults(
@@ -243,5 +265,9 @@ final class ApplicationLibraryViewModel: ObservableObject {
                 continuation.resume(returning: response == .OK ? panel.url : nil)
             }
         }
+    }
+
+    private static func defaultDownloadDirectory() -> URL? {
+        FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
     }
 }
