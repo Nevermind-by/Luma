@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated struct InstallDestinationStore: Sendable {
+struct InstallDestinationStore {
     private let defaults: UserDefaults
     private let bookmarkKey = "Luma.installDestinationBookmark"
 
