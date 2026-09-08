@@ -16,6 +16,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
     private let updateCoordinator: any ApplicationUpdateCoordinating
     private let downloadManager: any DownloadManaging
     private let artifactInspector: any UpdateArtifactInspecting
+    private let applicationInstaller: any ApplicationInstalling
     private let authenticationManager: AppsTorrentAuthenticationManager
     private let downloadDestinationStore: DownloadDestinationStore
 
@@ -28,6 +29,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
         ),
         downloadManager: any DownloadManaging = DownloadManager(),
         artifactInspector: any UpdateArtifactInspecting = UpdateArtifactInspector(),
+        applicationInstaller: any ApplicationInstalling = ApplicationInstaller(),
         authenticationManager: AppsTorrentAuthenticationManager? = nil,
         downloadDestinationStore: DownloadDestinationStore = DownloadDestinationStore()
     ) {
@@ -35,6 +37,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
         self.updateCoordinator = updateCoordinator
         self.downloadManager = downloadManager
         self.artifactInspector = artifactInspector
+        self.applicationInstaller = applicationInstaller
         self.authenticationManager = authenticationManager ?? AppsTorrentAuthenticationManager()
         self.downloadDestinationStore = downloadDestinationStore
         self.appsTorrentConnection = UpdateSourceConnection(
@@ -191,6 +194,27 @@ final class ApplicationLibraryViewModel: ObservableObject {
             } catch {
                 downloadStates[application.id] = .failed(error.localizedDescription)
             }
+        } catch {
+            downloadStates[application.id] = .failed(error.localizedDescription)
+        }
+    }
+
+    func installUpdate(for application: InstalledApplication) async {
+        guard case .readyToInstall(let preparedUpdate)? = downloadStates[application.id] else {
+            return
+        }
+
+        downloadStates[application.id] = .installing(preparedUpdate.version)
+
+        do {
+            try await applicationInstaller.install(
+                preparedUpdate,
+                replacing: application
+            )
+
+            applications = await scanner.scan()
+            updateStates[application.id] = .upToDate
+            downloadStates[application.id] = .installed(preparedUpdate.version)
         } catch {
             downloadStates[application.id] = .failed(error.localizedDescription)
         }
