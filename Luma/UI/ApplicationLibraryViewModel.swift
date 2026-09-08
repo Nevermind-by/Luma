@@ -10,11 +10,13 @@ final class ApplicationLibraryViewModel: ObservableObject {
     @Published private(set) var isScanning = false
     @Published private(set) var isCheckingUpdates = false
     @Published private(set) var appsTorrentConnection: UpdateSourceConnection
+    @Published private(set) var downloadDirectoryURL: URL?
 
     private let scanner: any ApplicationScanning
     private let updateCoordinator: any ApplicationUpdateCoordinating
     private let downloadManager: any DownloadManaging
     private let authenticationManager: AppsTorrentAuthenticationManager
+    private let downloadDestinationStore: DownloadDestinationStore
 
     init(
         scanner: any ApplicationScanning = ApplicationScanner(),
@@ -24,17 +26,20 @@ final class ApplicationLibraryViewModel: ObservableObject {
             )
         ),
         downloadManager: any DownloadManaging = DownloadManager(),
-        authenticationManager: AppsTorrentAuthenticationManager? = nil
+        authenticationManager: AppsTorrentAuthenticationManager? = nil,
+        downloadDestinationStore: DownloadDestinationStore = DownloadDestinationStore()
     ) {
         self.scanner = scanner
         self.updateCoordinator = updateCoordinator
         self.downloadManager = downloadManager
         self.authenticationManager = authenticationManager ?? AppsTorrentAuthenticationManager()
+        self.downloadDestinationStore = downloadDestinationStore
         self.appsTorrentConnection = UpdateSourceConnection(
             id: "appstorrent",
             name: "AppsTorrent",
             state: self.authenticationManager.isLoginCompleted ? .connected : .signInRequired
         )
+        self.downloadDirectoryURL = downloadDestinationStore.savedDirectory()
     }
 
     var canCheckAppsTorrent: Bool {
@@ -134,12 +139,22 @@ final class ApplicationLibraryViewModel: ObservableObject {
             return
         }
 
-        guard let destinationDirectory = await chooseDownloadDirectory() else {
-            return
+        let destinationDirectory: URL
+        if let savedDirectory = downloadDirectoryURL {
+            destinationDirectory = savedDirectory
+        } else {
+            guard let selectedDirectory = await chooseDownloadDirectory() else {
+                return
+            }
+            downloadDestinationStore.save(directory: selectedDirectory)
+            downloadDirectoryURL = downloadDestinationStore.savedDirectory() ?? selectedDirectory
+            destinationDirectory = downloadDirectoryURL ?? selectedDirectory
         }
 
         guard destinationDirectory.startAccessingSecurityScopedResource() else {
-            downloadStates[application.id] = .failed("Luma could not access the selected folder.")
+            downloadDestinationStore.clear()
+            downloadDirectoryURL = nil
+            downloadStates[application.id] = .failed("Luma could not access the saved download folder. Please choose it again.")
             return
         }
         defer {
@@ -166,6 +181,15 @@ final class ApplicationLibraryViewModel: ObservableObject {
         } catch {
             downloadStates[application.id] = .failed(error.localizedDescription)
         }
+    }
+
+    func chooseDownloadDirectoryForFutureUpdates() async {
+        guard let selectedDirectory = await chooseDownloadDirectory() else {
+            return
+        }
+
+        downloadDestinationStore.save(directory: selectedDirectory)
+        downloadDirectoryURL = downloadDestinationStore.savedDirectory() ?? selectedDirectory
     }
 
     func showDownloadedFile(for application: InstalledApplication) {
@@ -214,7 +238,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
             panel.allowsMultipleSelection = false
             panel.canCreateDirectories = true
             panel.prompt = "Choose"
-            panel.message = "Choose where Luma should save the update."
+            panel.message = "Choose where Luma should save updates."
             panel.begin { response in
                 continuation.resume(returning: response == .OK ? panel.url : nil)
             }
