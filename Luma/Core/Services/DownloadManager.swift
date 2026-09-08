@@ -113,9 +113,9 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
-        let job = job(for: downloadTask.taskIdentifier)
+        let activeJob = job(for: downloadTask.taskIdentifier)
         let total = totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : nil
-        job?.progress(
+        activeJob?.progress(
             DownloadProgress(
                 bytesWritten: totalBytesWritten,
                 totalBytes: total
@@ -128,36 +128,36 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        guard let job = job(for: downloadTask.taskIdentifier) else {
+        guard let activeJob = job(for: downloadTask.taskIdentifier) else {
             return
         }
 
         guard let response = downloadTask.response as? HTTPURLResponse,
               (200..<300).contains(response.statusCode) else {
             _ = removeJob(for: downloadTask.taskIdentifier)
-            job.continuation.resume(throwing: DownloadError.invalidResponse)
+            activeJob.continuation.resume(throwing: DownloadError.invalidResponse)
             return
         }
 
-        guard let job = removeJob(for: downloadTask.taskIdentifier) else {
+        guard let completedJob = removeJob(for: downloadTask.taskIdentifier) else {
             return
         }
 
         do {
-            if FileManager.default.fileExists(atPath: job.destinationURL.path) {
-                try FileManager.default.removeItem(at: job.destinationURL)
+            if FileManager.default.fileExists(atPath: completedJob.destinationURL.path) {
+                try FileManager.default.removeItem(at: completedJob.destinationURL)
             }
 
-            try FileManager.default.moveItem(at: location, to: job.destinationURL)
-            job.progress(
+            try FileManager.default.moveItem(at: location, to: completedJob.destinationURL)
+            completedJob.progress(
                 DownloadProgress(
                     bytesWritten: 1,
                     totalBytes: 1
                 )
             )
-            job.continuation.resume(returning: job.destinationURL)
+            completedJob.continuation.resume(returning: completedJob.destinationURL)
         } catch {
-            job.continuation.resume(throwing: error)
+            completedJob.continuation.resume(throwing: error)
         }
     }
 
