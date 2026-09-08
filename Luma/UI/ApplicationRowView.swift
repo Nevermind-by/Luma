@@ -5,6 +5,7 @@ struct ApplicationRowView: View {
     let application: InstalledApplication
     let updateState: ApplicationUpdateState
     let downloadState: ApplicationDownloadState
+    let onCheck: () -> Void
     let onDownload: () -> Void
     let onShowDownloadedFile: () -> Void
 
@@ -45,9 +46,10 @@ struct ApplicationRowView: View {
     private var updateStatusView: some View {
         switch updateState {
         case .notChecked:
-            Text("Not checked")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Button("Check") {
+                onCheck()
+            }
+            .controlSize(.small)
 
         case .checking:
             ProgressView()
@@ -79,14 +81,27 @@ struct ApplicationRowView: View {
             }
 
         case .unavailable:
-            Text("Unavailable")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Text("Unavailable")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Button("Retry") {
+                    onCheck()
+                }
+                .controlSize(.small)
+            }
 
         case .failed:
-            Label("Check failed", systemImage: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Label("Check failed", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+
+                Button("Retry") {
+                    onCheck()
+                }
+                .controlSize(.small)
+            }
         }
     }
 
