@@ -58,9 +58,10 @@ nonisolated struct URLSessionAppsTorrentPageProvider: AppsTorrentPageProviding {
 
 nonisolated struct AppsTorrentBrowserPageProvider: AppsTorrentPageProviding {
     func fetchPage(at url: URL) async throws -> String {
-        let html = try await MainActor.run {
-            try await AppsTorrentBrowserSession.shared.loadAndCaptureHTML(at: url)
+        let session = await MainActor.run {
+            AppsTorrentBrowserSession.shared
         }
+        let html = try await session.loadAndCaptureHTML(at: url)
 
         if html.localizedCaseInsensitiveContains("Just a moment...")
             || html.localizedCaseInsensitiveContains("cf-chl-") {
