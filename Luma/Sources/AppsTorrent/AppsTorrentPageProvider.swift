@@ -29,8 +29,14 @@ nonisolated struct URLSessionAppsTorrentPageProvider: AppsTorrentPageProviding {
 
             let (data, response) = try await session.data(for: request)
 
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200..<300).contains(httpResponse.statusCode) else {
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw ProviderError.invalidResponse
+            }
+
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                if httpResponse.statusCode == 403 {
+                    throw ProviderError.cloudflareChallengeDetected
+                }
                 throw ProviderError.invalidResponse
             }
 
