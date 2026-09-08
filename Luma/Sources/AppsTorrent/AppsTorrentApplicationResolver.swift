@@ -12,6 +12,35 @@ nonisolated struct AppsTorrentApplicationResolver: Sendable {
         self.searchProvider = searchProvider
     }
 
+    func resolveCandidates(for application: InstalledApplication) async throws -> [AppsTorrentSearchResult] {
+        let results = try await searchProvider.search(for: application.name)
+        let matches = results
+            .compactMap { result -> Match? in
+                guard let score = score(application: application, resultTitle: result.title) else {
+                    return nil
+                }
+                return Match(result: result, score: score)
+            }
+            .sorted {
+                if $0.score != $1.score {
+                    return $0.score > $1.score
+                }
+                return $0.result.title.localizedStandardCompare($1.result.title) == .orderedAscending
+            }
+
+        guard !matches.isEmpty else {
+            throw ResolverError.noMatch
+        }
+
+        var seenURLs = Set<URL>()
+        return matches.compactMap { match in
+            guard seenURLs.insert(match.result.url).inserted else {
+                return nil
+            }
+            return match.result
+        }
+    }
+
     func resolve(application: InstalledApplication) async throws -> URL {
         let results = try await searchProvider.search(for: application.name)
         let matches = results
