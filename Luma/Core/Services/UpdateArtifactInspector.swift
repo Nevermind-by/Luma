@@ -14,7 +14,6 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
         case extractionFailed
         case applicationNotFound
         case bundleIdentifierMismatch(expected: String, actual: String)
-        case applicationNameMismatch(expected: String, actual: String)
         case versionMismatch(expected: String, actual: String)
 
         var errorDescription: String? {
@@ -27,8 +26,6 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
                 return "No application bundle was found inside the downloaded update."
             case .bundleIdentifierMismatch(let expected, let actual):
                 return "The downloaded application is not the expected app (bundle ID \(actual), expected \(expected))."
-            case .applicationNameMismatch(let expected, let actual):
-                return "The downloaded application is not the expected app (\(actual), expected \(expected))."
             case .versionMismatch(let expected, let actual):
                 return "The downloaded application reports version \(actual), expected \(expected)."
             }
@@ -57,28 +54,25 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
             throw InspectionError.applicationNotFound
         }
 
-        let bundle = Bundle(url: applicationURL)
-        let actualIdentifier = bundle?.bundleIdentifier ?? ""
+        guard let bundle = Bundle(url: applicationURL),
+              let actualIdentifier = bundle.bundleIdentifier else {
+            throw InspectionError.bundleIdentifierMismatch(
+                expected: expectedApplication.bundleIdentifier,
+                actual: "unknown"
+            )
+        }
+
         guard actualIdentifier == expectedApplication.bundleIdentifier else {
             throw InspectionError.bundleIdentifierMismatch(
                 expected: expectedApplication.bundleIdentifier,
-                actual: actualIdentifier.isEmpty ? "unknown" : actualIdentifier
+                actual: actualIdentifier
             )
         }
 
-        let actualName = bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String
-            ?? applicationURL.deletingPathExtension().lastPathComponent
-        guard actualName.localizedCaseInsensitiveCompare(expectedApplication.bundleIdentifier) != .orderedSame || actualIdentifier == expectedApplication.bundleIdentifier else {
-            throw InspectionError.applicationNameMismatch(
-                expected: expectedApplication.bundleIdentifier,
-                actual: actualName
-            )
-        }
-
-        let actualVersionString = (bundle?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
-            ?? (bundle?.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
+        let actualVersionString = (bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
+            ?? (bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
             ?? ""
-        let actualVersion = SoftwareVersion(rawValue: actualVersionString)
+        let actualVersion = SoftwareVersion(actualVersionString)
         guard actualVersion == expectedVersion else {
             throw InspectionError.versionMismatch(
                 expected: expectedVersion.rawValue,
