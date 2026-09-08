@@ -38,6 +38,7 @@ nonisolated struct AppsTorrentSource: UpdateSource {
         return UpdateCandidate(
             application: application.id,
             version: release.version,
+            distributionVariant: release.distributionVariant,
             downloadOptions: release.downloadOptions
         )
     }
