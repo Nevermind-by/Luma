@@ -55,7 +55,16 @@ nonisolated struct ApplicationScanner: ApplicationScanning {
             id: ApplicationIdentity(bundleIdentifier: bundleIdentifier),
             name: name,
             version: SoftwareVersion(version),
-            bundleURL: url
+            bundleURL: url,
+            installationSource: installationSource(for: bundle)
         )
+    }
+
+    private func installationSource(for bundle: Bundle) -> ApplicationInstallationSource {
+        guard let receiptURL = bundle.appStoreReceiptURL else {
+            return .unknown
+        }
+
+        return FileManager.default.fileExists(atPath: receiptURL.path) ? .appStore : .unknown
     }
 }
