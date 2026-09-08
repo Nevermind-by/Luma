@@ -143,27 +143,26 @@ final class ApplicationLibraryViewModel: ObservableObject {
             return
         }
 
-        let destinationDirectory: URL
-        if let savedDirectory = downloadDestinationStore.savedDirectory() ?? Self.defaultDownloadDirectory() {
-            destinationDirectory = savedDirectory
-            downloadDirectoryURL = savedDirectory
-        } else {
-            guard let selectedDirectory = await chooseDownloadDirectory() else {
-                return
-            }
-            downloadDestinationStore.save(directory: selectedDirectory)
-            downloadDirectoryURL = downloadDestinationStore.savedDirectory() ?? selectedDirectory
-            destinationDirectory = downloadDirectoryURL ?? selectedDirectory
-        }
+        let savedDirectory = downloadDestinationStore.savedDirectory()
+        let destinationDirectory = savedDirectory ?? Self.defaultDownloadDirectory()
 
-        guard destinationDirectory.startAccessingSecurityScopedResource() else {
+        guard let destinationDirectory else {
+            downloadStates[application.id] = .failed("Luma could not find your Downloads folder. Choose another folder in Settings.")
+            return
+        }
+        downloadDirectoryURL = destinationDirectory
+
+        let requiresSecurityScope = savedDirectory != nil
+        if requiresSecurityScope && !destinationDirectory.startAccessingSecurityScopedResource() {
             downloadDestinationStore.clear()
             downloadDirectoryURL = Self.defaultDownloadDirectory()
-            downloadStates[application.id] = .failed("Luma could not access the download folder. Choose another folder in Settings.")
+            downloadStates[application.id] = .failed("Luma could not access the saved download folder. Choose another folder in Settings.")
             return
         }
         defer {
-            destinationDirectory.stopAccessingSecurityScopedResource()
+            if requiresSecurityScope {
+                destinationDirectory.stopAccessingSecurityScopedResource()
+            }
         }
 
         let cookies = await authenticationManager.cookies(for: option.url)
