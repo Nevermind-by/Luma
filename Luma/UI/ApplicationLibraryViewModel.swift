@@ -19,6 +19,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
     private let applicationInstaller: any ApplicationInstalling
     private let authenticationManager: AppsTorrentAuthenticationManager
     private let downloadDestinationStore: DownloadDestinationStore
+    private let appsTorrentBrowserSession: AppsTorrentBrowserSession
 
     init(
         scanner: any ApplicationScanning = ApplicationScanner(),
@@ -31,7 +32,8 @@ final class ApplicationLibraryViewModel: ObservableObject {
         artifactInspector: any UpdateArtifactInspecting = UpdateArtifactInspector(),
         applicationInstaller: (any ApplicationInstalling)? = nil,
         authenticationManager: AppsTorrentAuthenticationManager? = nil,
-        downloadDestinationStore: DownloadDestinationStore = DownloadDestinationStore()
+        downloadDestinationStore: DownloadDestinationStore = DownloadDestinationStore(),
+        appsTorrentBrowserSession: AppsTorrentBrowserSession? = nil
     ) {
         self.scanner = scanner
         self.updateCoordinator = updateCoordinator
@@ -42,6 +44,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
         )
         self.authenticationManager = authenticationManager ?? AppsTorrentAuthenticationManager()
         self.downloadDestinationStore = downloadDestinationStore
+        self.appsTorrentBrowserSession = appsTorrentBrowserSession ?? AppsTorrentBrowserSession.shared
         self.appsTorrentConnection = UpdateSourceConnection(
             id: "appstorrent",
             name: "AppsTorrent",
@@ -193,8 +196,18 @@ final class ApplicationLibraryViewModel: ObservableObject {
                     expectedVersion: candidate.version
                 )
                 downloadStates[application.id] = .readyToInstall(preparedUpdate)
-            } catch {
-                downloadStates[application.id] = .failed(error.localizedDescription)
+            } catch let inspectionError as UpdateArtifactInspector.InspectionError where inspectionError == .unsupportedArtifact {
+                try? FileManager.default.removeItem(at: destinationURL)
+                let browserDestination = try await appsTorrentBrowserSession.download(
+                    option.url,
+                    to: destinationDirectory
+                )
+                let preparedUpdate = try await artifactInspector.inspect(
+                    artifactURL: browserDestination,
+                    expectedApplication: application.id,
+                    expectedVersion: candidate.version
+                )
+                downloadStates[application.id] = .readyToInstall(preparedUpdate)
             }
         } catch {
             downloadStates[application.id] = .failed(error.localizedDescription)
