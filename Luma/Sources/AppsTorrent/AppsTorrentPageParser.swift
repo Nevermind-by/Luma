@@ -39,7 +39,7 @@ nonisolated struct AppsTorrentPageParser: Sendable {
 
     private func currentReleaseBlock(html: String, version: String) throws -> String {
         let escapedVersion = NSRegularExpression.escapedPattern(for: version)
-        let pattern = #"<!--\s*dle_spoiler\b[^>]*"# + escapedVersion + #"[^>]*-->.*?(?=<!--\s*dle_spoiler\b|\z)"#
+        let pattern = #"(<!--\s*dle_spoiler\b[^>]*"# + escapedVersion + #"[^>]*-->.*?)(?=<!--\s*dle_spoiler\b|\z)"#
 
         guard let block = firstCapture(
             pattern: pattern,
