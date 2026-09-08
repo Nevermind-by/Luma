@@ -1,6 +1,6 @@
 import Foundation
 
-protocol UpdateSource: Sendable {
+nonisolated protocol UpdateSource: Sendable {
     var name: String { get }
 
     func checkForUpdate(
