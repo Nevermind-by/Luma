@@ -12,12 +12,78 @@ nonisolated protocol AppsTorrentSearchProviding: Sendable {
 nonisolated struct URLSessionAppsTorrentSearchProvider: AppsTorrentSearchProviding {
     private let session: URLSession
     private let baseURL: URL
+    private let browserProvider: AppsTorrentBrowserSearchProvider
 
     init(
         session: URLSession = .shared,
-        baseURL: URL = URL(string: "https://appstorrent.ru")!
+        baseURL: URL = URL(string: "https://appstorrent.ru")!,
+        browserProvider: AppsTorrentBrowserSearchProvider? = nil
     ) {
         self.session = session
+        self.baseURL = baseURL
+        self.browserProvider = browserProvider ?? AppsTorrentBrowserSearchProvider(baseURL: baseURL)
+    }
+
+    func search(for query: String) async throws -> [AppsTorrentSearchResult] {
+        guard let url = searchURL(for: query) else {
+            throw AppsTorrentSearchError.invalidSearchURL
+        }
+
+        do {
+            var request = URLRequest(url: url)
+            request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+            request.setValue("Luma/0.1", forHTTPHeaderField: "User-Agent")
+
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw AppsTorrentSearchError.invalidResponse
+            }
+
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                if httpResponse.statusCode == 403 {
+                    throw AppsTorrentSearchError.cloudflareChallengeDetected
+                }
+                throw AppsTorrentSearchError.invalidResponse
+            }
+
+            guard let html = String(data: data, encoding: .utf8) else {
+                throw AppsTorrentSearchError.invalidResponse
+            }
+
+            if html.localizedCaseInsensitiveContains("Just a moment...")
+                || html.localizedCaseInsensitiveContains("cf-chl-") {
+                throw AppsTorrentSearchError.cloudflareChallengeDetected
+            }
+
+            return AppsTorrentSearchParser().parse(html: html, baseURL: baseURL)
+        } catch AppsTorrentSearchError.cloudflareChallengeDetected {
+            return try await browserProvider.search(for: query)
+        }
+    }
+
+    private func searchURL(for query: String) -> URL? {
+        guard var components = URLComponents(
+            url: baseURL.appendingPathComponent("index.php"),
+            resolvingAgainstBaseURL: false
+        ) else {
+            return nil
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "do", value: "search"),
+            URLQueryItem(name: "subaction", value: "search"),
+            URLQueryItem(name: "story", value: query)
+        ]
+
+        return components.url
+    }
+}
+
+nonisolated struct AppsTorrentBrowserSearchProvider: AppsTorrentSearchProviding {
+    private let baseURL: URL
+
+    init(baseURL: URL = URL(string: "https://appstorrent.ru")!) {
         self.baseURL = baseURL
     }
 
@@ -39,19 +105,8 @@ nonisolated struct URLSessionAppsTorrentSearchProvider: AppsTorrentSearchProvidi
             throw AppsTorrentSearchError.invalidSearchURL
         }
 
-        var request = URLRequest(url: url)
-        request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
-        request.setValue("Luma/0.1", forHTTPHeaderField: "User-Agent")
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            throw AppsTorrentSearchError.invalidResponse
-        }
-
-        guard let html = String(data: data, encoding: .utf8) else {
-            throw AppsTorrentSearchError.invalidResponse
+        let html = try await MainActor.run {
+            try await AppsTorrentBrowserSession.shared.loadAndCaptureHTML(at: url)
         }
 
         if html.localizedCaseInsensitiveContains("Just a moment...")
