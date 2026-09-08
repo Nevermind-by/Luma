@@ -6,18 +6,21 @@ protocol ApplicationScanning: Sendable {
 
 struct ApplicationScanner: ApplicationScanning {
     private let fileManager: FileManager
+    private let roots: [URL]
 
-    init(fileManager: FileManager = .default) {
+    init(
+        roots: [URL] = [
+            URL(fileURLWithPath: "/Applications", isDirectory: true),
+            URL(fileURLWithPath: "/System/Applications", isDirectory: true)
+        ],
+        fileManager: FileManager = .default
+    ) {
+        self.roots = roots
         self.fileManager = fileManager
     }
 
     func scan() async -> [InstalledApplication] {
-        let directories = [
-            URL(fileURLWithPath: "/Applications", isDirectory: true),
-            URL(fileURLWithPath: "/System/Applications", isDirectory: true)
-        ]
-
-        return directories
+        roots
             .flatMap(scanDirectory)
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
@@ -43,6 +46,7 @@ struct ApplicationScanner: ApplicationScanning {
             let name = bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
                 ?? bundle.object(forInfoDictionaryKey: "CFBundleName") as? String,
             let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+            !name.isEmpty,
             !version.isEmpty
         else {
             return nil
