@@ -29,7 +29,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
         ),
         downloadManager: any DownloadManaging = DownloadManager(),
         artifactInspector: any UpdateArtifactInspecting = UpdateArtifactInspector(),
-        applicationInstaller: any ApplicationInstalling = ApplicationInstaller(),
+        applicationInstaller: (any ApplicationInstalling)? = nil,
         authenticationManager: AppsTorrentAuthenticationManager? = nil,
         downloadDestinationStore: DownloadDestinationStore = DownloadDestinationStore()
     ) {
@@ -37,7 +37,9 @@ final class ApplicationLibraryViewModel: ObservableObject {
         self.updateCoordinator = updateCoordinator
         self.downloadManager = downloadManager
         self.artifactInspector = artifactInspector
-        self.applicationInstaller = applicationInstaller
+        self.applicationInstaller = applicationInstaller ?? ApplicationInstaller(
+            destinationStore: InstallDestinationStore()
+        )
         self.authenticationManager = authenticationManager ?? AppsTorrentAuthenticationManager()
         self.downloadDestinationStore = downloadDestinationStore
         self.appsTorrentConnection = UpdateSourceConnection(
