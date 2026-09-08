@@ -1,22 +1,19 @@
 import Foundation
 
-nonisolated protocol ApplicationScanning: Sendable {
+protocol ApplicationScanning {
     func scan() async -> [InstalledApplication]
 }
 
-nonisolated struct ApplicationScanner: ApplicationScanning {
-    private let fileManager: FileManager
+struct ApplicationScanner: ApplicationScanning {
     private let roots: [URL]
 
     init(
         roots: [URL] = [
             URL(fileURLWithPath: "/Applications", isDirectory: true),
             URL(fileURLWithPath: "/System/Applications", isDirectory: true)
-        ],
-        fileManager: FileManager = .default
+        ]
     ) {
         self.roots = roots
-        self.fileManager = fileManager
     }
 
     func scan() async -> [InstalledApplication] {
@@ -26,6 +23,8 @@ nonisolated struct ApplicationScanner: ApplicationScanning {
     }
 
     private func scanDirectory(_ directory: URL) -> [InstalledApplication] {
+        let fileManager = FileManager.default
+
         guard let contents = try? fileManager.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: [.isDirectoryKey],
