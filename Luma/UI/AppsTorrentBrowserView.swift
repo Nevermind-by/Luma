@@ -12,9 +12,10 @@ struct AppsTorrentBrowserView: View {
     private let exampleURL = URL(string: "https://example.com")!
     private let appsTorrentURL = URL(string: "https://appstorrent.ru")!
 
+    @MainActor
     init(
         url: URL,
-        session: AppsTorrentBrowserSession = .shared,
+        session: AppsTorrentBrowserSession,
         onComplete: @escaping () -> Void = {}
     ) {
         self.url = url
@@ -133,6 +134,7 @@ private struct BrowserWebView: NSViewRepresentable {
 
 #Preview {
     AppsTorrentBrowserView(
-        url: URL(string: "https://appstorrent.ru")!
+        url: URL(string: "https://appstorrent.ru")!,
+        session: AppsTorrentBrowserSession.shared
     )
 }
