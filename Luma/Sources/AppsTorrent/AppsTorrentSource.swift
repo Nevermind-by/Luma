@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 nonisolated struct AppsTorrentSource: UpdateSource {
     let name = "AppsTorrent"
@@ -65,7 +66,9 @@ nonisolated struct AppsTorrentSource: UpdateSource {
         }
 
         let comparison = versionComparator.compare(latestRelease.version, application.version)
-        LumaLog.appsTorrent.info("Selected release \(latestRelease.version.rawValue, privacy: .public); comparison result \(comparison.rawValue, privacy: .public)")
+        LumaLog.appsTorrent.info(
+            "Selected release \(latestRelease.version.rawValue, privacy: .public); comparison result \(comparisonDescription(comparison), privacy: .public)"
+        )
 
         guard comparison == .orderedDescending else {
             return nil
@@ -118,5 +121,16 @@ nonisolated struct AppsTorrentSource: UpdateSource {
         _ rhs: AppsTorrentRelease
     ) -> Bool {
         versionComparator.compare(lhs.version, rhs.version) == .orderedAscending
+    }
+
+    private func comparisonDescription(_ result: VersionComparator.Result) -> String {
+        switch result {
+        case .orderedAscending:
+            return "ascending"
+        case .orderedSame:
+            return "same"
+        case .orderedDescending:
+            return "descending"
+        }
     }
 }
