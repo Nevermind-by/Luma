@@ -16,8 +16,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Patch Luma entitlements
-        shell: python3
+        shell: bash
         run: |
+          python3 <<'PY'
           from pathlib import Path
 
           path = Path("Luma.xcodeproj/project.pbxproj")
@@ -49,6 +50,7 @@ jobs:
 
           path.write_text(text)
           print("Patched CODE_SIGN_ENTITLEMENTS for Luma Debug and Release.")
+          PY
 
       - name: Commit and remove migration workflow
         shell: bash
