@@ -16,7 +16,7 @@ nonisolated struct AppsTorrentApplicationResolver: Sendable {
         let results = try await searchProvider.search(for: application.name)
         let matches = results
             .compactMap { result -> Match? in
-                guard let score = score(applicationName: application.name, resultTitle: result.title) else {
+                guard let score = score(application: application, resultTitle: result.title) else {
                     return nil
                 }
                 return Match(result: result, score: score)
@@ -45,30 +45,55 @@ nonisolated struct AppsTorrentApplicationResolver: Sendable {
         let score: Int
     }
 
-    private func score(applicationName: String, resultTitle: String) -> Int? {
-        let app = normalize(applicationName)
+    private func score(application: InstalledApplication, resultTitle: String) -> Int? {
+        let app = normalize(application.name)
         let title = normalize(resultTitle)
 
         guard !app.isEmpty, !title.isEmpty else {
             return nil
         }
 
+        let baseScore: Int
         if app == title {
-            return 100
+            baseScore = 100
+        } else {
+            guard title.hasPrefix(app) else {
+                return nil
+            }
+
+            let suffix = String(title.dropFirst(app.count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard isVersionLikeSuffix(suffix) else {
+                return nil
+            }
+
+            baseScore = 90
         }
 
-        guard title.hasPrefix(app) else {
-            return nil
+        return baseScore + distributionVariantBonus(
+            installationSource: application.installationSource,
+            resultTitle: resultTitle
+        )
+    }
+
+    private func distributionVariantBonus(
+        installationSource: ApplicationInstallationSource,
+        resultTitle: String
+    ) -> Int {
+        let isMAS = resultTitle.range(
+            of: #"\[\s*MAS\s*\]"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+
+        switch installationSource {
+        case .appStore:
+            return isMAS ? 20 : 0
+        case .direct:
+            return isMAS ? -10 : 20
+        case .unknown:
+            return 0
         }
-
-        let suffix = String(title.dropFirst(app.count))
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard isVersionLikeSuffix(suffix) else {
-            return nil
-        }
-
-        return 90
     }
 
     private func isVersionLikeSuffix(_ value: String) -> Bool {
