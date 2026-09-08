@@ -23,6 +23,8 @@ nonisolated struct URLSessionAppsTorrentPageProvider: AppsTorrentPageProviding {
 
     func fetchPage(at url: URL) async throws -> String {
         do {
+            LumaLog.appsTorrent.info("Fetching AppsTorrent page via URLSession host=\(url.host ?? "unknown", privacy: .public)")
+
             var request = URLRequest(url: url)
             request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
             request.setValue("Luma/0.1", forHTTPHeaderField: "User-Agent")
@@ -51,6 +53,7 @@ nonisolated struct URLSessionAppsTorrentPageProvider: AppsTorrentPageProviding {
 
             return html
         } catch ProviderError.cloudflareChallengeDetected {
+            LumaLog.appsTorrent.info("Falling back to authenticated WebKit for AppsTorrent page host=\(url.host ?? "unknown", privacy: .public)")
             return try await browserProvider.fetchPage(at: url)
         }
     }
