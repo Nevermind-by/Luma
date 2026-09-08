@@ -50,6 +50,10 @@ final class ApplicationInstaller: ApplicationInstalling {
         _ preparedUpdate: PreparedUpdate,
         replacing application: InstalledApplication
     ) async throws {
+        defer {
+            try? FileManager.default.removeItem(at: preparedUpdate.stagingDirectoryURL)
+        }
+
         let fileManager = FileManager.default
         let sourceURL = preparedUpdate.applicationURL
         let installedURL = application.bundleURL
