@@ -108,6 +108,7 @@ struct AppsTorrentSourceTests {
             searchProvider: searchProvider
         )
         let application = makeApplication(
+            name: "Test App",
             version: "3.0",
             installationSource: .appStore
         )
@@ -162,14 +163,15 @@ struct AppsTorrentSourceTests {
     }
 
     private func makeApplication(
+        name: String = "Parallels Desktop",
         version: String,
         installationSource: ApplicationInstallationSource = .unknown
     ) -> InstalledApplication {
         InstalledApplication(
-            id: ApplicationIdentity(bundleIdentifier: "com.parallels.desktop.console"),
-            name: "Parallels Desktop",
+            id: ApplicationIdentity(bundleIdentifier: "com.example.test"),
+            name: name,
             version: SoftwareVersion(version),
-            bundleURL: URL(fileURLWithPath: "/Applications/Parallels Desktop.app"),
+            bundleURL: URL(fileURLWithPath: "/Applications/\(name).app"),
             installationSource: installationSource
         )
     }
