@@ -4,6 +4,7 @@ nonisolated protocol DownloadManaging: Sendable {
     func download(
         _ option: DownloadOption,
         to directory: URL,
+        cookies: [HTTPCookie],
         progress: @escaping @Sendable (DownloadProgress) -> Void
     ) async throws -> URL
 }
@@ -12,6 +13,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
     enum DownloadError: Error, Equatable {
         case unsupportedDownloadOption
         case invalidDestination
+        case invalidResponse
         case downloadFailed
     }
 
@@ -38,6 +40,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
     func download(
         _ option: DownloadOption,
         to directory: URL,
+        cookies: [HTTPCookie] = [],
         progress: @escaping @Sendable (DownloadProgress) -> Void
     ) async throws -> URL {
         guard option.kind == .direct else {
@@ -55,7 +58,13 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
             in: directory
         )
 
-        let task = session.downloadTask(with: option.url)
+        var request = URLRequest(url: option.url)
+        if !cookies.isEmpty {
+            let fields = HTTPCookie.requestHeaderFields(with: cookies)
+            request.setValue(fields["Cookie"], forHTTPHeaderField: "Cookie")
+        }
+
+        let task = session.downloadTask(with: request)
 
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
             lock.lock()
@@ -119,6 +128,17 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
+        guard let job = job(for: downloadTask.taskIdentifier) else {
+            return
+        }
+
+        guard let response = downloadTask.response as? HTTPURLResponse,
+              (200..<300).contains(response.statusCode) else {
+            _ = removeJob(for: downloadTask.taskIdentifier)
+            job.continuation.resume(throwing: DownloadError.invalidResponse)
+            return
+        }
+
         guard let job = removeJob(for: downloadTask.taskIdentifier) else {
             return
         }
