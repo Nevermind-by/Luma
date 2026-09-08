@@ -44,7 +44,7 @@ struct ApplicationRowView: View {
             Spacer(minLength: 12)
 
             updateStatusView
-                .frame(minWidth: 150, alignment: .trailing)
+                .frame(minWidth: 180, alignment: .trailing)
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle())
@@ -138,7 +138,7 @@ struct ApplicationRowView: View {
             Button {
                 onDownload()
             } label: {
-                Label("Update", systemImage: "arrow.down.circle")
+                Label("Download Update", systemImage: "arrow.down.circle")
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -157,18 +157,26 @@ struct ApplicationRowView: View {
                     .controlSize(.small)
             }
 
-        case .completed:
-            Button("Show in Finder") {
-                onShowDownloadedFile()
+        case .readyToInstall(let preparedUpdate):
+            VStack(alignment: .trailing, spacing: 5) {
+                Label("Ready to Install", systemImage: "checkmark.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.tint)
+                Text(preparedUpdate.version.rawValue)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Button("Show in Finder") {
+                    onShowDownloadedFile()
+                }
+                .controlSize(.small)
             }
-            .controlSize(.small)
 
         case .failed(let message):
             Text(message)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.trailing)
-                .frame(maxWidth: 240, alignment: .trailing)
+                .frame(maxWidth: 260, alignment: .trailing)
         }
     }
 
