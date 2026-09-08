@@ -5,6 +5,7 @@ struct ApplicationRowView: View {
     let application: InstalledApplication
     let updateState: ApplicationUpdateState
     let downloadState: ApplicationDownloadState
+    let isUpdateCheckEnabled: Bool
     let onCheck: () -> Void
     let onDownload: () -> Void
     let onShowDownloadedFile: () -> Void
@@ -50,6 +51,8 @@ struct ApplicationRowView: View {
                 onCheck()
             }
             .controlSize(.small)
+            .disabled(!isUpdateCheckEnabled)
+            .help(isUpdateCheckEnabled ? "Check AppsTorrent for an update" : "Sign in to AppsTorrent first")
 
         case .checking:
             ProgressView()
@@ -90,6 +93,7 @@ struct ApplicationRowView: View {
                     onCheck()
                 }
                 .controlSize(.small)
+                .disabled(!isUpdateCheckEnabled)
             }
 
         case .failed:
@@ -101,6 +105,7 @@ struct ApplicationRowView: View {
                     onCheck()
                 }
                 .controlSize(.small)
+                .disabled(!isUpdateCheckEnabled)
             }
         }
     }
