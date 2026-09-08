@@ -20,7 +20,16 @@ struct ContentView: View {
                     List(viewModel.applications) { application in
                         ApplicationRowView(
                             application: application,
-                            updateState: viewModel.updateStates[application.id] ?? .notChecked
+                            updateState: viewModel.updateStates[application.id] ?? .notChecked,
+                            downloadState: viewModel.downloadStates[application.id] ?? .notStarted,
+                            onDownload: {
+                                Task {
+                                    await viewModel.downloadUpdate(for: application)
+                                }
+                            },
+                            onShowDownloadedFile: {
+                                viewModel.showDownloadedFile(for: application)
+                            }
                         )
                     }
                     .listStyle(.inset)
