@@ -51,8 +51,8 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
         switch artifactFormat(for: artifactURL) {
         case .zip:
             try extractZip(artifactURL, to: stagingDirectory)
-        case .dmg:
-            try extractDMG(artifactURL, to: stagingDirectory)
+        case .dmg, .iso:
+            try extractDiskImage(artifactURL, to: stagingDirectory)
         case .unknown:
             throw InspectionError.unsupportedArtifact
         }
@@ -101,6 +101,7 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
     private enum ArtifactFormat {
         case zip
         case dmg
+        case iso
         case unknown
     }
 
@@ -110,6 +111,8 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
             return .zip
         case "dmg":
             return .dmg
+        case "iso":
+            return .iso
         default:
             break
         }
@@ -168,9 +171,9 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
         }
     }
 
-    private func extractDMG(_ image: URL, to directory: URL) throws {
+    private func extractDiskImage(_ image: URL, to directory: URL) throws {
         let mountPoint = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Luma-DMG-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("Luma-DiskImage-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
         defer {
             unmount(mountPoint)
