@@ -105,9 +105,10 @@ nonisolated struct AppsTorrentBrowserSearchProvider: AppsTorrentSearchProviding 
             throw AppsTorrentSearchError.invalidSearchURL
         }
 
-        let html = try await MainActor.run {
-            try await AppsTorrentBrowserSession.shared.loadAndCaptureHTML(at: url)
+        let session = await MainActor.run {
+            AppsTorrentBrowserSession.shared
         }
+        let html = try await session.loadAndCaptureHTML(at: url)
 
         if html.localizedCaseInsensitiveContains("Just a moment...")
             || html.localizedCaseInsensitiveContains("cf-chl-") {
