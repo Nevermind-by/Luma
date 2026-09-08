@@ -9,6 +9,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
         case loading(URL)
         case ready(URL)
         case failed(String)
+        case processTerminated
     }
 
     @Published private(set) var state: State = .idle
@@ -31,6 +32,12 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
         loadedURL = url
         state = .loading(url)
         webView.load(URLRequest(url: url))
+    }
+
+    func reload() {
+        guard let url = loadedURL else { return }
+        state = .loading(url)
+        webView.reload()
     }
 
     func captureHTML() async throws -> String {
@@ -108,6 +115,12 @@ extension AppsTorrentBrowserSession: WKNavigationDelegate {
     ) {
         Task { @MainActor [weak self] in
             self?.state = .failed(error.localizedDescription)
+        }
+    }
+
+    nonisolated func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        Task { @MainActor [weak self] in
+            self?.state = .processTerminated
         }
     }
 }
