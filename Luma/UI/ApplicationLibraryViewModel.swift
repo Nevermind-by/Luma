@@ -148,26 +148,26 @@ final class ApplicationLibraryViewModel: ObservableObject {
             return
         }
 
-        let savedDirectory = downloadDestinationStore.savedDirectory()
-        let destinationDirectory = savedDirectory ?? Self.defaultDownloadDirectory()
-
-        guard let destinationDirectory else {
-            downloadStates[application.id] = .failed("Luma could not find your Downloads folder. Choose another folder in Settings.")
+        let destinationDirectory: URL
+        if let savedDirectory = downloadDestinationStore.savedDirectory() {
+            destinationDirectory = savedDirectory
+        } else if let selectedDirectory = await chooseDownloadDirectoryForFirstUse() {
+            downloadDestinationStore.save(directory: selectedDirectory)
+            destinationDirectory = selectedDirectory
+            downloadDirectoryURL = selectedDirectory
+        } else {
+            downloadStates[application.id] = .failed("Luma needs access to a folder where it can save the update.")
             return
         }
-        downloadDirectoryURL = destinationDirectory
 
-        let requiresSecurityScope = savedDirectory != nil
-        if requiresSecurityScope && !destinationDirectory.startAccessingSecurityScopedResource() {
+        guard destinationDirectory.startAccessingSecurityScopedResource() else {
             downloadDestinationStore.clear()
             downloadDirectoryURL = Self.defaultDownloadDirectory()
             downloadStates[application.id] = .failed("Luma could not access the saved download folder. Choose another folder in Settings.")
             return
         }
         defer {
-            if requiresSecurityScope {
-                destinationDirectory.stopAccessingSecurityScopedResource()
-            }
+            destinationDirectory.stopAccessingSecurityScopedResource()
         }
 
         let cookies = await authenticationManager.cookies(for: option.url)
@@ -274,6 +274,22 @@ final class ApplicationLibraryViewModel: ObservableObject {
         case .unavailable:
             updateStates[application.id] = .unavailable
             downloadStates[application.id] = nil
+        }
+    }
+
+    private func chooseDownloadDirectoryForFirstUse() async -> URL? {
+        await withCheckedContinuation { continuation in
+            let panel = NSOpenPanel()
+            panel.canChooseFiles = false
+            panel.canChooseDirectories = true
+            panel.allowsMultipleSelection = false
+            panel.canCreateDirectories = true
+            panel.directoryURL = Self.defaultDownloadDirectory()
+            panel.prompt = "Allow Access"
+            panel.message = "Choose where Luma should save updates. Downloads is selected by default."
+            panel.begin { response in
+                continuation.resume(returning: response == .OK ? panel.url : nil)
+            }
         }
     }
 
