@@ -1,8 +1,10 @@
 import Foundation
 
 nonisolated enum UpdateSourceConnectionState: String, Equatable, Sendable {
+    case checking
     case connected
     case signInRequired
+    case sessionExpired
 }
 
 nonisolated struct UpdateSourceConnection: Identifiable, Hashable, Sendable {
