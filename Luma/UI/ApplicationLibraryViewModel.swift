@@ -52,24 +52,22 @@ final class ApplicationLibraryViewModel: ObservableObject {
         )
 
         let results = await updateCoordinator.checkForUpdates(for: applications)
+        applyUpdateResults(results)
+    }
 
-        for application in applications {
-            guard let status = results[application.id] else {
-                updateStates[application.id] = .unavailable
-                continue
-            }
+    func checkForUpdate(for application: InstalledApplication) async {
+        guard !isCheckingUpdates else { return }
 
-            switch status {
-            case .updateAvailable(let candidate):
-                updateStates[application.id] = .updateAvailable(candidate)
-                downloadStates[application.id] = .notStarted
-            case .upToDate:
-                updateStates[application.id] = .upToDate
-                downloadStates[application.id] = nil
-            case .unavailable:
-                updateStates[application.id] = .unavailable
-                downloadStates[application.id] = nil
-            }
+        isCheckingUpdates = true
+        updateStates[application.id] = .checking
+        defer { isCheckingUpdates = false }
+
+        let results = await updateCoordinator.checkForUpdates(for: [application])
+        if let status = results[application.id] {
+            applyUpdateResult(status, for: application)
+        } else {
+            updateStates[application.id] = .unavailable
+            downloadStates[application.id] = nil
         }
     }
 
@@ -113,6 +111,36 @@ final class ApplicationLibraryViewModel: ObservableObject {
         }
 
         NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    private func applyUpdateResults(
+        _ results: [ApplicationIdentity: UpdateStatus]
+    ) {
+        for application in applications {
+            guard let status = results[application.id] else {
+                updateStates[application.id] = .unavailable
+                continue
+            }
+
+            applyUpdateResult(status, for: application)
+        }
+    }
+
+    private func applyUpdateResult(
+        _ status: UpdateStatus,
+        for application: InstalledApplication
+    ) {
+        switch status {
+        case .updateAvailable(let candidate):
+            updateStates[application.id] = .updateAvailable(candidate)
+            downloadStates[application.id] = .notStarted
+        case .upToDate:
+            updateStates[application.id] = .upToDate
+            downloadStates[application.id] = nil
+        case .unavailable:
+            updateStates[application.id] = .unavailable
+            downloadStates[application.id] = nil
+        }
     }
 
     private func chooseDownloadDirectory() async -> URL? {
