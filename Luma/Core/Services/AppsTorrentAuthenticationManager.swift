@@ -16,10 +16,10 @@ final class AppsTorrentAuthenticationManager: ObservableObject {
 
     init(
         defaults: UserDefaults = .standard,
-        session: AppsTorrentBrowserSession = .shared
+        session: AppsTorrentBrowserSession? = nil
     ) {
         self.defaults = defaults
-        self.session = session
+        self.session = session ?? AppsTorrentBrowserSession.shared
         self.isLoginCompleted = defaults.bool(forKey: Keys.loginCompleted)
     }
 
