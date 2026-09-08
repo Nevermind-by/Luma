@@ -23,12 +23,12 @@ final class ApplicationLibraryViewModel: ObservableObject {
             )
         ),
         downloadManager: any DownloadManaging = DownloadManager(),
-        authenticationManager: AppsTorrentAuthenticationManager = AppsTorrentAuthenticationManager()
+        authenticationManager: AppsTorrentAuthenticationManager? = nil
     ) {
         self.scanner = scanner
         self.updateCoordinator = updateCoordinator
         self.downloadManager = downloadManager
-        self.authenticationManager = authenticationManager
+        self.authenticationManager = authenticationManager ?? AppsTorrentAuthenticationManager()
     }
 
     func load() async {
