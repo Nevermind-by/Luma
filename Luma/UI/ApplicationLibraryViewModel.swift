@@ -138,6 +138,14 @@ final class ApplicationLibraryViewModel: ObservableObject {
             return
         }
 
+        guard destinationDirectory.startAccessingSecurityScopedResource() else {
+            downloadStates[application.id] = .failed("Luma could not access the selected folder.")
+            return
+        }
+        defer {
+            destinationDirectory.stopAccessingSecurityScopedResource()
+        }
+
         let cookies = await authenticationManager.cookies(for: option.url)
         downloadStates[application.id] = .downloading(
             DownloadProgress(bytesWritten: 0, totalBytes: nil)
