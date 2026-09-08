@@ -13,5 +13,9 @@ struct LumaApp: App {
         WindowGroup {
             ContentView()
         }
+
+        Settings {
+            DownloadSettingsView()
+        }
     }
 }
