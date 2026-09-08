@@ -8,7 +8,7 @@ nonisolated protocol DownloadManaging: Sendable {
     ) async throws -> URL
 }
 
-final class DownloadManager: NSObject, DownloadManaging, @unchecked Sendable {
+final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManaging, @unchecked Sendable {
     enum DownloadError: Error, Equatable {
         case unsupportedDownloadOption
         case invalidDestination
