@@ -1,16 +1,8 @@
-//
-//  LumaUITestsLaunchTests.swift
-//  LumaUITests
-//
-//  Created by Nevermind on 08.09.2026.
-//
-
 import XCTest
 
 final class LumaUITestsLaunchTests: XCTestCase {
-
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
-        true
+        false
     }
 
     override func setUpWithError() throws {
@@ -19,13 +11,13 @@ final class LumaUITestsLaunchTests: XCTestCase {
 
     @MainActor
     func testLaunch() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication(bundleIdentifier: "by.nevermind.Luma")
         app.launch()
 
-        // Insert steps here to perform after app launch but before taking a screenshot,
-        // such as logging into a test account or navigating somewhere in the app
-        // XCUIAutomation Documentation
-        // https://developer.apple.com/documentation/xcuiautomation
+        XCTAssertTrue(
+            app.wait(for: .runningForeground, timeout: 5),
+            "Luma did not reach the foreground."
+        )
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Launch Screen"
