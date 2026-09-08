@@ -1,7 +1,7 @@
 import Foundation
 
-struct DownloadOption: Identifiable, Hashable, Sendable {
-    enum Kind: String, Sendable {
+nonisolated struct DownloadOption: Identifiable, Hashable, Sendable {
+    nonisolated enum Kind: String, Sendable {
         case direct
         case external
     }

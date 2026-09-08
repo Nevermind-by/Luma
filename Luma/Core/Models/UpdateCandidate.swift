@@ -1,6 +1,6 @@
 import Foundation
 
-struct UpdateCandidate: Identifiable, Hashable, Sendable {
+nonisolated struct UpdateCandidate: Identifiable, Hashable, Sendable {
     let id: UUID
     let application: ApplicationIdentity
     let version: SoftwareVersion

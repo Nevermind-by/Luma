@@ -1,6 +1,6 @@
 import Foundation
 
-struct SoftwareVersion: Hashable, Sendable {
+nonisolated struct SoftwareVersion: Hashable, Sendable {
     let rawValue: String
 
     init(_ rawValue: String) {
