@@ -41,6 +41,10 @@ final class ApplicationLibraryViewModel: ObservableObject {
         appsTorrentConnection.state == .connected
     }
 
+    func canCheckApplication(_ application: InstalledApplication) -> Bool {
+        canCheckAppsTorrent && !isCheckingUpdates
+    }
+
     func load() async {
         guard !isScanning else { return }
 
