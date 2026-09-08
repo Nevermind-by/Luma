@@ -11,30 +11,54 @@ nonisolated struct URLSessionAppsTorrentPageProvider: AppsTorrentPageProviding {
     }
 
     private let session: URLSession
+    private let browserProvider: AppsTorrentBrowserPageProvider
 
-    init(session: URLSession = .shared) {
+    init(
+        session: URLSession = .shared,
+        browserProvider: AppsTorrentBrowserPageProvider = AppsTorrentBrowserPageProvider()
+    ) {
         self.session = session
+        self.browserProvider = browserProvider
     }
 
     func fetchPage(at url: URL) async throws -> String {
-        var request = URLRequest(url: url)
-        request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
-        request.setValue("Luma/0.1", forHTTPHeaderField: "User-Agent")
+        do {
+            var request = URLRequest(url: url)
+            request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+            request.setValue("Luma/0.1", forHTTPHeaderField: "User-Agent")
 
-        let (data, response) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            throw ProviderError.invalidResponse
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200..<300).contains(httpResponse.statusCode) else {
+                throw ProviderError.invalidResponse
+            }
+
+            guard let html = String(data: data, encoding: .utf8) else {
+                throw ProviderError.invalidResponse
+            }
+
+            if html.localizedCaseInsensitiveContains("Just a moment...")
+                || html.localizedCaseInsensitiveContains("cf-chl-") {
+                throw ProviderError.cloudflareChallengeDetected
+            }
+
+            return html
+        } catch ProviderError.cloudflareChallengeDetected {
+            return try await browserProvider.fetchPage(at: url)
         }
+    }
+}
 
-        guard let html = String(data: data, encoding: .utf8) else {
-            throw ProviderError.invalidResponse
+nonisolated struct AppsTorrentBrowserPageProvider: AppsTorrentPageProviding {
+    func fetchPage(at url: URL) async throws -> String {
+        let html = try await MainActor.run {
+            try await AppsTorrentBrowserSession.shared.loadAndCaptureHTML(at: url)
         }
 
         if html.localizedCaseInsensitiveContains("Just a moment...")
             || html.localizedCaseInsensitiveContains("cf-chl-") {
-            throw ProviderError.cloudflareChallengeDetected
+            throw URLSessionAppsTorrentPageProvider.ProviderError.cloudflareChallengeDetected
         }
 
         return html
