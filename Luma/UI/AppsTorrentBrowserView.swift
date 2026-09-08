@@ -26,6 +26,7 @@ struct AppsTorrentBrowserView: View {
             Divider()
 
             WebViewContainer(webView: session.webView)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(minWidth: 900, minHeight: 650)
         .task {
