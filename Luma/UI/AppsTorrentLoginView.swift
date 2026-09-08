@@ -8,8 +8,9 @@ struct AppsTorrentLoginView: View {
 
     private let appsTorrentURL = URL(string: "https://appstorrent.ru")!
 
+    @MainActor
     init(
-        session: AppsTorrentBrowserSession = .shared,
+        session: AppsTorrentBrowserSession,
         onLoginCompleted: @escaping () -> Void,
         onLogout: @escaping () -> Void = {}
     ) {
@@ -114,5 +115,8 @@ private struct LoginBrowserWebView: NSViewRepresentable {
 }
 
 #Preview {
-    AppsTorrentLoginView(onLoginCompleted: {})
+    AppsTorrentLoginView(
+        session: AppsTorrentBrowserSession.shared,
+        onLoginCompleted: {}
+    )
 }
