@@ -1,0 +1,38 @@
+# Xcode
+.DS_Store
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Local IDE / tooling
+.vscode/
+.idea/
+
+# Downloads / artifacts
+Downloads/
+Artifacts/
+*.dmg
+*.pkg
+*.zip
+*.iso
+
+# macOS
+.Trashes
