@@ -112,13 +112,13 @@ struct ContentView: View {
                 } label: {
                     HStack(spacing: 10) {
                         Circle()
-                            .fill(viewModel.canCheckAppsTorrent ? .green : .orange)
+                            .fill(sourceIndicatorColor)
                             .frame(width: 8, height: 8)
 
                         VStack(alignment: .leading, spacing: 1) {
                             Text("AppsTorrent")
                                 .font(.body)
-                            Text(viewModel.canCheckAppsTorrent ? "Connected" : "Sign in required")
+                            Text(sourceStatusText)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -129,11 +129,14 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .contextMenu {
-                    if viewModel.canCheckAppsTorrent {
+                    switch viewModel.appsTorrentConnection.state {
+                    case .connected:
                         Button("Sign Out") {
                             Task { await viewModel.logoutAppsTorrent() }
                         }
-                    } else {
+                    case .checking:
+                        EmptyView()
+                    case .signInRequired, .sessionExpired:
                         Button("Sign In") {
                             isAppsTorrentBrowserPresented = true
                         }
@@ -220,7 +223,7 @@ struct ContentView: View {
                         application: application,
                         updateState: viewModel.updateStates[application.id] ?? .notChecked,
                         downloadState: viewModel.downloadStates[application.id] ?? .notStarted,
-                        isUpdateCheckEnabled: viewModel.canCheckAppsTorrent,
+                        isUpdateCheckEnabled: viewModel.canCheckApplication(application),
                         onCheck: {
                             Task { await viewModel.checkForUpdate(for: application) }
                         },
@@ -237,6 +240,23 @@ struct ContentView: View {
             }
         }
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search applications")
+    }
+
+    private var sourceStatusText: String {
+        switch viewModel.appsTorrentConnection.state {
+        case .checking: return "Checking session…"
+        case .connected: return "Connected"
+        case .signInRequired: return "Sign in required"
+        case .sessionExpired: return "Session expired"
+        }
+    }
+
+    private var sourceIndicatorColor: Color {
+        switch viewModel.appsTorrentConnection.state {
+        case .checking: return .yellow
+        case .connected: return .green
+        case .signInRequired, .sessionExpired: return .orange
+        }
     }
 
     private var selectionTitle: String {
