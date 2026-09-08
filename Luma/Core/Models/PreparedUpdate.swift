@@ -7,6 +7,7 @@ nonisolated struct PreparedUpdate: Identifiable, Equatable, Sendable {
     let artifactURL: URL
     let applicationURL: URL
     let bundleIdentifier: String
+    let stagingDirectoryURL: URL
 
     init(
         id: UUID = UUID(),
@@ -14,7 +15,8 @@ nonisolated struct PreparedUpdate: Identifiable, Equatable, Sendable {
         version: SoftwareVersion,
         artifactURL: URL,
         applicationURL: URL,
-        bundleIdentifier: String
+        bundleIdentifier: String,
+        stagingDirectoryURL: URL
     ) {
         self.id = id
         self.application = application
@@ -22,5 +24,6 @@ nonisolated struct PreparedUpdate: Identifiable, Equatable, Sendable {
         self.artifactURL = artifactURL
         self.applicationURL = applicationURL
         self.bundleIdentifier = bundleIdentifier
+        self.stagingDirectoryURL = stagingDirectoryURL
     }
 }
