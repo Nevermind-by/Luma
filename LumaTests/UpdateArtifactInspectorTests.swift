@@ -76,15 +76,15 @@ struct UpdateArtifactInspectorTests {
             arguments: ["-c", "-k", "--sequesterRsrc", "--keepParent", appURL.path, archiveURL.path]
         )
 
-        await #expect(throws: UpdateArtifactInspector.InspectionError.versionMismatch(
-            expected: "3.0.0",
-            actual: "2.0.0"
-        )) {
-            try await UpdateArtifactInspector().inspect(
+        do {
+            _ = try await UpdateArtifactInspector().inspect(
                 artifactURL: archiveURL,
                 expectedApplication: ApplicationIdentity(bundleIdentifier: "com.example.fixture"),
                 expectedVersion: SoftwareVersion("3.0.0")
             )
+            Issue.record("Expected version mismatch")
+        } catch let error as UpdateArtifactInspector.InspectionError {
+            #expect(error == .versionMismatch(expected: "3.0.0", actual: "2.0.0"))
         }
     }
 
