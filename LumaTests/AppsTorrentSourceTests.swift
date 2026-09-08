@@ -62,8 +62,14 @@ struct AppsTorrentSourceTests {
             pageProvider: provider,
             searchProvider: StubSearchProvider(results: [])
         )
+        let application = InstalledApplication(
+            id: ApplicationIdentity(bundleIdentifier: "com.example.test"),
+            name: "Test App",
+            version: SoftwareVersion("2.0"),
+            bundleURL: URL(fileURLWithPath: "/Applications/Test App.app")
+        )
 
-        let candidate = try await source.checkForUpdate(for: makeApplication(version: "2.0"))
+        let candidate = try await source.checkForUpdate(for: application)
 
         #expect(candidate == nil)
     }
