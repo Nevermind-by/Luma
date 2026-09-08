@@ -18,7 +18,8 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
     }
 
     private struct Job {
-        let destinationURL: URL
+        let requestedFilename: String
+        let destinationDirectory: URL
         let continuation: CheckedContinuation<URL, Error>
         let progress: @Sendable (DownloadProgress) -> Void
     }
@@ -53,11 +54,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
             throw DownloadError.invalidDestination
         }
 
-        let destinationURL = uniqueDestinationURL(
-            for: sanitizedFilename(from: option.url),
-            in: directory
-        )
-
+        let requestedFilename = sanitizedFilename(from: option.url)
         var request = URLRequest(url: option.url)
         if !cookies.isEmpty {
             let fields = HTTPCookie.requestHeaderFields(with: cookies)
@@ -69,7 +66,8 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
             lock.lock()
             jobs[task.taskIdentifier] = Job(
-                destinationURL: destinationURL,
+                requestedFilename: requestedFilename,
+                destinationDirectory: directory,
                 continuation: continuation,
                 progress: progress
             )
@@ -104,6 +102,17 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         }
 
         return directory.appendingPathComponent("Luma-\(UUID().uuidString).download")
+    }
+
+    private func preferredFilename(for response: HTTPURLResponse, requestedFilename: String) -> String {
+        let suggested = response.suggestedFilename?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let suggested, !suggested.isEmpty else {
+            return requestedFilename
+        }
+
+        return suggested
     }
 
     func urlSession(
@@ -144,18 +153,27 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         }
 
         do {
-            if FileManager.default.fileExists(atPath: completedJob.destinationURL.path) {
-                try FileManager.default.removeItem(at: completedJob.destinationURL)
+            let filename = preferredFilename(
+                for: response,
+                requestedFilename: completedJob.requestedFilename
+            )
+            let destinationURL = uniqueDestinationURL(
+                for: filename,
+                in: completedJob.destinationDirectory
+            )
+
+            if FileManager.default.fileExists(atPath: destinationURL.path) {
+                try FileManager.default.removeItem(at: destinationURL)
             }
 
-            try FileManager.default.moveItem(at: location, to: completedJob.destinationURL)
+            try FileManager.default.moveItem(at: location, to: destinationURL)
             completedJob.progress(
                 DownloadProgress(
                     bytesWritten: 1,
                     totalBytes: 1
                 )
             )
-            completedJob.continuation.resume(returning: completedJob.destinationURL)
+            completedJob.continuation.resume(returning: destinationURL)
         } catch {
             completedJob.continuation.resume(throwing: error)
         }
