@@ -1,5 +1,5 @@
 import Foundation
 
-struct ApplicationIdentity: Hashable, Sendable {
+nonisolated struct ApplicationIdentity: Hashable, Sendable {
     let bundleIdentifier: String
 }
