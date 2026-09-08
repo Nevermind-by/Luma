@@ -47,7 +47,7 @@ nonisolated struct AppsTorrentApplicationResolver: Sendable {
 
     private func score(application: InstalledApplication, resultTitle: String) -> Int? {
         let app = normalize(application.name)
-        let title = normalize(resultTitle)
+        let title = normalize(stripDistributionMarker(from: resultTitle))
 
         guard !app.isEmpty, !title.isEmpty else {
             return nil
@@ -94,6 +94,16 @@ nonisolated struct AppsTorrentApplicationResolver: Sendable {
         case .unknown:
             return 0
         }
+    }
+
+    private func stripDistributionMarker(from value: String) -> String {
+        value
+            .replacingOccurrences(
+                of: #"\[\s*MAS\s*\]"#,
+                with: "",
+                options: [.regularExpression, .caseInsensitive]
+            )
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func isVersionLikeSuffix(_ value: String) -> Bool {
