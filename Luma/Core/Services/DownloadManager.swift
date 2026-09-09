@@ -56,6 +56,8 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
 
         let requestedFilename = sanitizedFilename(from: option.url)
         var request = URLRequest(url: option.url)
+        request.setValue("https://appstorrent.ru/", forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
         if !cookies.isEmpty {
             let fields = HTTPCookie.requestHeaderFields(with: cookies)
             request.setValue(fields["Cookie"], forHTTPHeaderField: "Cookie")
