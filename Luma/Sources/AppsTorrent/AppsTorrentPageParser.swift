@@ -1,11 +1,24 @@
 import Foundation
 
 nonisolated struct AppsTorrentPageParser: Sendable {
-    enum ParserError: Error, Equatable {
+    enum ParserError: Error, Equatable, LocalizedError {
         case missingTitle
         case missingVersion
         case missingCurrentReleaseBlock
         case invalidDownloadURL
+
+        var errorDescription: String? {
+            switch self {
+            case .missingTitle:
+                return "AppsTorrent page is missing the application title."
+            case .missingVersion:
+                return "AppsTorrent page is missing the software version."
+            case .missingCurrentReleaseBlock:
+                return "AppsTorrent page is missing the current release block."
+            case .invalidDownloadURL:
+                return "AppsTorrent page does not contain a supported download link."
+            }
+        }
     }
 
     func parse(html: String, pageURL: URL) throws -> AppsTorrentRelease {
