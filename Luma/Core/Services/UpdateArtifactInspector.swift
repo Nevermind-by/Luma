@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 nonisolated protocol UpdateArtifactInspecting: Sendable {
     func inspect(
@@ -51,8 +52,10 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
         switch artifactFormat(for: artifactURL) {
         case .zip:
             try extractZip(artifactURL, to: stagingDirectory)
-        case .dmg, .iso:
-            try extractDiskImage(artifactURL, to: stagingDirectory)
+        case .dmg:
+            try extractDMG(artifactURL, to: stagingDirectory)
+        case .iso:
+            try extractISO(artifactURL, to: stagingDirectory)
         case .unknown:
             throw InspectionError.unsupportedArtifact
         }
@@ -171,9 +174,36 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
         }
     }
 
-    private func extractDiskImage(_ image: URL, to directory: URL) throws {
+    private func extractISO(_ image: URL, to directory: URL) throws {
+        // A sandboxed app cannot use hdiutil attach: DiskImages needs the
+        // hdiejectd helper, which is unavailable to the app sandbox. Use the
+        // libarchive-backed macOS tar reader instead, so the ISO is never mounted.
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
+        process.arguments = ["-xf", image.path, "-C", directory.path]
+        process.standardOutput = FileHandle.nullDevice
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+        try process.run()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            let message = String(
+                data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
+                encoding: .utf8
+            )?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            LumaLog.app.error(
+                "ISO extraction failed: \(message ?? "unknown tar error", privacy: .public)"
+            )
+            throw InspectionError.extractionFailed
+        }
+    }
+
+    private func extractDMG(_ image: URL, to directory: URL) throws {
         let mountPoint = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Luma-DiskImage-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("Luma-DMG-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
         defer {
             unmount(mountPoint)
