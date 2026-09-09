@@ -9,6 +9,7 @@ struct ApplicationRowView: View {
     let onDownload: () -> Void
     let onCancelDownload: () -> Void
     let onInstall: () -> Void
+    let onReopenInstaller: () -> Void
     let onShowDownloadedFile: () -> Void
 
     var body: some View {
@@ -198,17 +199,32 @@ struct ApplicationRowView: View {
             }
 
         case .awaitingUserInstallation(let version):
-            VStack(alignment: .trailing, spacing: 5) {
+            VStack(alignment: .trailing, spacing: 6) {
                 Label("Finish in macOS", systemImage: "macwindow.badge.plus")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.tint)
+
                 Text("Complete the installer. Luma will detect the new version automatically.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.trailing)
+
                 Text(version.rawValue)
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
+
+                HStack(spacing: 6) {
+                    Button("Open Installer Again") {
+                        onReopenInstaller()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+
+                    Button("Show in Finder") {
+                        onShowDownloadedFile()
+                    }
+                    .controlSize(.small)
+                }
             }
 
         case .installed(let version):
