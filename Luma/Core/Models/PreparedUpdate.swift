@@ -37,4 +37,28 @@ nonisolated struct PreparedUpdate: Identifiable, Equatable, Sendable {
         }
         return false
     }
+
+    func replacingArtifactURL(with url: URL) -> PreparedUpdate {
+        let updatedPayload: PreparedUpdatePayload
+        switch payload {
+        case .application:
+            updatedPayload = .application(url)
+        case .diskImage:
+            updatedPayload = .diskImage(url)
+        case .package:
+            updatedPayload = .package(url)
+        case .externalInstaller:
+            updatedPayload = .externalInstaller(url)
+        }
+
+        return PreparedUpdate(
+            id: id,
+            application: application,
+            version: version,
+            artifactURL: url,
+            payload: updatedPayload,
+            bundleIdentifier: bundleIdentifier,
+            stagingDirectoryURL: stagingDirectoryURL
+        )
+    }
 }
