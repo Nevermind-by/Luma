@@ -194,7 +194,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
 
         do {
             let fileAccess = pendingUpdateStore.beginFileAccess(for: application.id)
-            let installerUpdate = fileAccess.map(preparedUpdate.replacingArtifactURL(with:)) ?? preparedUpdate
+            let installerUpdate = fileAccess.map { preparedUpdate.replacingArtifactURL(with: $0.url) } ?? preparedUpdate
             defer { fileAccess?.stop() }
 
             let result = try await applicationInstaller.install(installerUpdate, replacing: application)
