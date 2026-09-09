@@ -22,7 +22,11 @@ struct UpdateArtifactInspectorTests {
 
         #expect(prepared.bundleIdentifier == "com.example.fixture")
         #expect(prepared.version == SoftwareVersion("2.0.0"))
-        #expect(fileManager.fileExists(atPath: prepared.applicationURL.path))
+        guard case .application(let preparedApplicationURL) = prepared.payload else {
+            Issue.record("Expected an application payload")
+            return
+        }
+        #expect(fileManager.fileExists(atPath: preparedApplicationURL.path))
     }
 
     @Test
@@ -46,6 +50,34 @@ struct UpdateArtifactInspectorTests {
         } catch let error as UpdateArtifactInspector.InspectionError {
             #expect(error == .versionMismatch(expected: "3.0.0", actual: "2.0.0"))
         }
+    }
+
+    @Test
+    func acceptsDiskImagePayloadWithoutTryingToMountIt() async throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent("LumaInspectorTest-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+
+        let dmgURL = root.appendingPathComponent("Fixture.dmg")
+        try Data([0x00, 0x01, 0x02, 0x03]).write(to: dmgURL)
+        let artifact = DownloadedArtifact(
+            originalURL: URL(string: "https://example.com/update")!,
+            finalURL: URL(string: "https://example.com/Fixture.dmg")!,
+            fileURL: dmgURL,
+            filename: dmgURL.lastPathComponent,
+            mimeType: "application/x-apple-diskimage",
+            byteCount: 4
+        )
+
+        let prepared = try await UpdateArtifactInspector().inspect(
+            artifact: artifact,
+            expectedApplication: ApplicationIdentity(bundleIdentifier: "com.example.fixture"),
+            expectedVersion: SoftwareVersion("2.0.0")
+        )
+
+        #expect(prepared.payload == .diskImage(dmgURL))
+        #expect(!prepared.isApplicationBundle)
     }
 
     private func makeFixtureApplication(in root: URL, version: String) throws -> URL {
