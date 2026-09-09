@@ -5,17 +5,20 @@ nonisolated struct PendingExternalUpdate: Codable, Equatable, Sendable {
     let version: String
     let fileURL: URL
     let fileBookmarkData: Data?
+    let installerOpened: Bool
 
     init(
         bundleIdentifier: String,
         version: String,
         fileURL: URL,
-        fileBookmarkData: Data? = nil
+        fileBookmarkData: Data? = nil,
+        installerOpened: Bool = false
     ) {
         self.bundleIdentifier = bundleIdentifier
         self.version = version
         self.fileURL = fileURL
         self.fileBookmarkData = fileBookmarkData
+        self.installerOpened = installerOpened
     }
 }
 
@@ -68,7 +71,8 @@ struct PendingUpdateStore {
                     bundleIdentifier: pending.bundleIdentifier,
                     version: pending.version,
                     fileURL: resolvedURL,
-                    fileBookmarkData: bookmarkData
+                    fileBookmarkData: bookmarkData,
+                    installerOpened: pending.installerOpened
                 )
             )
         }
@@ -95,6 +99,19 @@ struct PendingUpdateStore {
         )
     }
 
+    func markInstallerOpened(for application: ApplicationIdentity) {
+        guard let pending = pending(for: application) else { return }
+        save(
+            PendingExternalUpdate(
+                bundleIdentifier: pending.bundleIdentifier,
+                version: pending.version,
+                fileURL: pending.fileURL,
+                fileBookmarkData: pending.fileBookmarkData,
+                installerOpened: true
+            )
+        )
+    }
+
     func save(_ update: PendingExternalUpdate) {
         let bookmarkData = update.fileBookmarkData ?? (try? update.fileURL.bookmarkData(
             options: [.withSecurityScope],
@@ -106,7 +123,8 @@ struct PendingUpdateStore {
             bundleIdentifier: update.bundleIdentifier,
             version: update.version,
             fileURL: update.fileURL,
-            fileBookmarkData: bookmarkData
+            fileBookmarkData: bookmarkData,
+            installerOpened: update.installerOpened
         )
 
         var updates = all()
