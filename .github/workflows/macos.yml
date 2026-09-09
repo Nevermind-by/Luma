@@ -32,3 +32,47 @@ jobs:
             -scheme Luma \
             -destination 'platform=macOS' \
             test
+
+  package-release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build-and-test
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Archive Release
+        run: |
+          rm -rf build
+          xcodebuild \
+            -project Luma.xcodeproj \
+            -scheme Luma \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -archivePath build/Luma.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            archive
+
+      - name: Package ZIP
+        run: |
+          mkdir -p build/package
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/Luma.xcarchive/Products/Applications/Luma.app \
+            build/package/Luma-macOS-unsigned.zip
+
+      - name: Package DMG
+        run: |
+          hdiutil create \
+            -volname Luma \
+            -srcfolder build/Luma.xcarchive/Products/Applications \
+            -ov \
+            -format UDZO \
+            build/package/Luma-macOS-unsigned.dmg
+
+      - name: Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Luma-macOS-unsigned
+          path: build/package/
+          if-no-files-found: error
