@@ -37,6 +37,8 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
     private var activeDownloadDestination: URL?
     private var activeDownloadResponse: URLResponse?
     private var activeDownloadFinalURL: URL?
+    private var downloadDidBecomeActive = false
+    private var downloadFailureFallbackTask: Task<Void, Never>?
     private var loadedURL: URL?
     private let captureTimeoutNanoseconds: UInt64 = 30_000_000_000
 
@@ -52,6 +54,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
 
     deinit {
         self.activeTimeoutTask?.cancel()
+        self.downloadFailureFallbackTask?.cancel()
     }
 
     func load(_ url: URL) {
@@ -81,6 +84,9 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
         }
 
         return try await withCheckedThrowingContinuation { continuation in
+            self.downloadDidBecomeActive = false
+            self.downloadFailureFallbackTask?.cancel()
+            self.downloadFailureFallbackTask = nil
             self.activeDownload = PendingDownload(
                 url: url,
                 destinationDirectory: directory,
@@ -172,6 +178,8 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
     private func finishActiveDownload(with result: Result<DownloadedArtifact, Error>) {
         guard let activeDownload = self.activeDownload else { return }
         self.activeDownload = nil
+        self.downloadFailureFallbackTask?.cancel()
+        self.downloadFailureFallbackTask = nil
 
         let destination = self.activeDownloadDestination
         let response = self.activeDownloadResponse
@@ -179,6 +187,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
         self.activeDownloadDestination = nil
         self.activeDownloadResponse = nil
         self.activeDownloadFinalURL = nil
+        self.downloadDidBecomeActive = false
 
         switch result {
         case .failure(let error):
@@ -203,6 +212,23 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
         }
 
         self.processNextCaptureIfNeeded()
+    }
+
+    private func scheduleDownloadFailureFallback(for error: Error) {
+        self.downloadFailureFallbackTask?.cancel()
+        self.downloadFailureFallbackTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                guard let self,
+                      self.activeDownload != nil,
+                      !self.downloadDidBecomeActive else {
+                    return
+                }
+                self.finishActiveDownload(with: .failure(error))
+            }
+        }
     }
 
     private func captureCurrentHTML() {
@@ -267,21 +293,47 @@ extension AppsTorrentBrowserSession: WKNavigationDelegate {
         }
     }
 
-    nonisolated func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+    nonisolated func webView(
+        _ webView: WKWebView,
+        didFail navigation: WKNavigation!,
+        withError error: Error
+    ) {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.state = .failed(error.localizedDescription)
             self.finishActiveCapture(with: .failure(error))
-            self.finishActiveDownload(with: .failure(error))
+
+            if self.activeDownload != nil {
+                if self.downloadDidBecomeActive {
+                    self.finishActiveDownload(with: .failure(error))
+                } else {
+                    self.scheduleDownloadFailureFallback(for: error)
+                }
+            }
         }
     }
 
-    nonisolated func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+    nonisolated func webView(
+        _ webView: WKWebView,
+        didFailProvisionalNavigation navigation: WKNavigation!,
+        withError error: Error
+    ) {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.state = .failed(error.localizedDescription)
             self.finishActiveCapture(with: .failure(error))
-            self.finishActiveDownload(with: .failure(error))
+
+            // A direct file navigation often reports "Frame load interrupted"
+            // when WebKit hands the navigation off to WKDownload. Do not fail
+            // the logical download before the download delegate has a chance
+            // to claim it.
+            if self.activeDownload != nil {
+                if self.downloadDidBecomeActive {
+                    self.finishActiveDownload(with: .failure(error))
+                } else {
+                    self.scheduleDownloadFailureFallback(for: error)
+                }
+            }
         }
     }
 
@@ -295,7 +347,11 @@ extension AppsTorrentBrowserSession: WKNavigationDelegate {
                 download.cancel()
                 return
             }
+            self.downloadDidBecomeActive = true
+            self.downloadFailureFallbackTask?.cancel()
+            self.downloadFailureFallbackTask = nil
             download.delegate = self
+            LumaLog.appsTorrent.info("AppsTorrent WKDownload became active")
         }
     }
 
@@ -337,6 +393,10 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
             }
             self.activeDownloadDestination = destination
             completionHandler(destination)
+
+            LumaLog.appsTorrent.info(
+                "AppsTorrent download response: filename=\(filename, privacy: .public), mime=\(response.mimeType ?? "unknown", privacy: .public), url=\((response.url ?? activeDownload.url).absoluteString, privacy: .public)"
+            )
         }
     }
 
@@ -344,8 +404,7 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.activeDownloadFinalURL = url
-            let finalURL = url.absoluteString
-            LumaLog.appsTorrent.info("AppsTorrent download final URL: \(finalURL, privacy: .public)")
+            LumaLog.appsTorrent.info("AppsTorrent download final URL: \(url.absoluteString, privacy: .public)")
         }
     }
 
@@ -359,6 +418,9 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
 
             let resourceValues = try? destination.resourceValues(forKeys: [.fileSizeKey])
             let byteCount = Int64(resourceValues?.fileSize ?? 0)
+            LumaLog.appsTorrent.info(
+                "AppsTorrent download finished: path=\(destination.path, privacy: .public), bytes=\(byteCount, privacy: .public)"
+            )
             self.finishActiveDownload(with: .success(DownloadedArtifact(
                 originalURL: activeDownload.url,
                 finalURL: self.activeDownloadFinalURL ?? self.activeDownloadResponse?.url ?? activeDownload.url,
@@ -378,6 +440,7 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.state = .failed(error.localizedDescription)
+            LumaLog.appsTorrent.error("AppsTorrent WKDownload failed: \(error.localizedDescription, privacy: .public)")
             self.finishActiveDownload(with: .failure(error))
         }
     }
