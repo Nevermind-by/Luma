@@ -24,9 +24,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
     init(
         scanner: any ApplicationScanning = ApplicationScanner(),
         updateCoordinator: any ApplicationUpdateCoordinating = ApplicationUpdateCoordinator(
-            checker: UpdateChecker(
-                sources: [AppsTorrentSource()]
-            )
+            checker: UpdateChecker(sources: [AppsTorrentSource()])
         ),
         downloadManager: any DownloadManaging = DownloadManager(),
         artifactInspector: any UpdateArtifactInspecting = UpdateArtifactInspector(),
@@ -53,9 +51,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
         self.downloadDirectoryURL = self.downloadDestinationStore.savedDirectory() ?? Self.defaultDownloadDirectory()
     }
 
-    var canCheckAppsTorrent: Bool {
-        appsTorrentConnection.state == .connected
-    }
+    var canCheckAppsTorrent: Bool { appsTorrentConnection.state == .connected }
 
     func canCheckApplication(_ application: InstalledApplication) -> Bool {
         canCheckAppsTorrent && !isCheckingUpdates
@@ -63,7 +59,6 @@ final class ApplicationLibraryViewModel: ObservableObject {
 
     func load() async {
         guard !isScanning else { return }
-
         isScanning = true
         defer { isScanning = false }
 
@@ -75,12 +70,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
     }
 
     func refreshAppsTorrentConnection() async {
-        appsTorrentConnection = UpdateSourceConnection(
-            id: "appstorrent",
-            name: "AppsTorrent",
-            state: .checking
-        )
-
+        appsTorrentConnection = UpdateSourceConnection(id: "appstorrent", name: "AppsTorrent", state: .checking)
         let isConnected = await authenticationManager.refreshLoginState()
         appsTorrentConnection = UpdateSourceConnection(
             id: "appstorrent",
@@ -91,23 +81,15 @@ final class ApplicationLibraryViewModel: ObservableObject {
 
     func checkForUpdates() async {
         guard canCheckAppsTorrent, !isCheckingUpdates, !applications.isEmpty else { return }
-
         isCheckingUpdates = true
         defer { isCheckingUpdates = false }
 
-        updateStates = Dictionary(
-            uniqueKeysWithValues: applications.map {
-                ($0.id, .checking)
-            }
-        )
-
-        let results = await updateCoordinator.checkForUpdates(for: applications)
-        applyUpdateResults(results)
+        updateStates = Dictionary(uniqueKeysWithValues: applications.map { ($0.id, .checking) })
+        applyUpdateResults(await updateCoordinator.checkForUpdates(for: applications))
     }
 
     func checkForUpdate(for application: InstalledApplication) async {
         guard canCheckAppsTorrent, !isCheckingUpdates else { return }
-
         isCheckingUpdates = true
         updateStates[application.id] = .checking
         defer { isCheckingUpdates = false }
@@ -123,28 +105,19 @@ final class ApplicationLibraryViewModel: ObservableObject {
 
     func markAppsTorrentLoginCompleted() {
         authenticationManager.markLoginCompleted()
-        appsTorrentConnection = UpdateSourceConnection(
-            id: "appstorrent",
-            name: "AppsTorrent",
-            state: .connected
-        )
+        appsTorrentConnection = UpdateSourceConnection(id: "appstorrent", name: "AppsTorrent", state: .connected)
     }
 
     func logoutAppsTorrent() async {
         await authenticationManager.logout()
-        appsTorrentConnection = UpdateSourceConnection(
-            id: "appstorrent",
-            name: "AppsTorrent",
-            state: .signInRequired
-        )
+        appsTorrentConnection = UpdateSourceConnection(id: "appstorrent", name: "AppsTorrent", state: .signInRequired)
         updateStates = [:]
         downloadStates = [:]
     }
 
     func downloadUpdate(for application: InstalledApplication) async {
-        guard canCheckAppsTorrent, case .updateAvailable(let candidate)? = updateStates[application.id] else {
-            return
-        }
+        guard canCheckAppsTorrent,
+              case .updateAvailable(let candidate)? = updateStates[application.id] else { return }
 
         guard let option = candidate.downloadOptions.first(where: { $0.kind == .direct }) else {
             downloadStates[application.id] = .failed("A direct download is not available for this update.")
@@ -169,67 +142,29 @@ final class ApplicationLibraryViewModel: ObservableObject {
             downloadStates[application.id] = .failed("Luma could not access the saved download folder. Choose another folder in Settings.")
             return
         }
-        defer {
-            destinationDirectory.stopAccessingSecurityScopedResource()
-        }
+        defer { destinationDirectory.stopAccessingSecurityScopedResource() }
 
-        let cookies = await authenticationManager.cookies(for: option.url)
-        downloadStates[application.id] = .downloading(
-            DownloadProgress(bytesWritten: 0, totalBytes: nil)
-        )
+        downloadStates[application.id] = .downloading(DownloadProgress(bytesWritten: 0, totalBytes: nil))
 
         do {
-            let destinationURL = try await downloadManager.download(
-                option,
-                to: destinationDirectory,
-                cookies: cookies
-            ) { [weak self] progress in
-                Task { @MainActor [weak self] in
-                    self?.downloadStates[application.id] = .downloading(progress)
-                }
-            }
-
-            do {
-                let preparedUpdate = try await artifactInspector.inspect(
-                    artifactURL: destinationURL,
-                    expectedApplication: application.id,
-                    expectedVersion: candidate.version
-                )
-                downloadStates[application.id] = .readyToInstall(preparedUpdate)
-            } catch {
-                // AppsTorrent sometimes serves a browser-mediated download to the
-                // same direct URL. Retry once through the persistent WebKit session
-                // whenever the URLSession artifact cannot be inspected.
-                try? FileManager.default.removeItem(at: destinationURL)
-                let browserDestination = try await appsTorrentBrowserSession.download(
-                    option.url,
-                    to: destinationDirectory
-                )
-                let preparedUpdate = try await artifactInspector.inspect(
-                    artifactURL: browserDestination,
-                    expectedApplication: application.id,
-                    expectedVersion: candidate.version
-                )
-                downloadStates[application.id] = .readyToInstall(preparedUpdate)
-            }
+            let artifact = try await appsTorrentBrowserSession.download(option.url, to: destinationDirectory)
+            let preparedUpdate = try await artifactInspector.inspect(
+                artifact: artifact,
+                expectedApplication: application.id,
+                expectedVersion: candidate.version
+            )
+            downloadStates[application.id] = .readyToInstall(preparedUpdate)
         } catch {
             downloadStates[application.id] = .failed(error.localizedDescription)
         }
     }
 
     func installUpdate(for application: InstalledApplication) async {
-        guard case .readyToInstall(let preparedUpdate)? = downloadStates[application.id] else {
-            return
-        }
-
+        guard case .readyToInstall(let preparedUpdate)? = downloadStates[application.id] else { return }
         downloadStates[application.id] = .installing(preparedUpdate.version)
 
         do {
-            try await applicationInstaller.install(
-                preparedUpdate,
-                replacing: application
-            )
-
+            try await applicationInstaller.install(preparedUpdate, replacing: application)
             applications = await scanner.scan()
             updateStates[application.id] = .upToDate
             downloadStates[application.id] = .installed(preparedUpdate.version)
@@ -239,47 +174,27 @@ final class ApplicationLibraryViewModel: ObservableObject {
     }
 
     func chooseDownloadDirectoryForFutureUpdates() async {
-        guard let selectedDirectory = await chooseDownloadDirectory() else {
-            return
-        }
-
+        guard let selectedDirectory = await chooseDownloadDirectory() else { return }
         downloadDestinationStore.save(directory: selectedDirectory)
         downloadDirectoryURL = downloadDestinationStore.savedDirectory() ?? selectedDirectory
     }
 
     func showDownloadedFile(for application: InstalledApplication) {
-        guard let state = downloadStates[application.id] else { return }
-
-        let url: URL?
-        switch state {
-        case .readyToInstall(let preparedUpdate):
-            url = preparedUpdate.artifactURL
-        default:
-            url = nil
-        }
-
-        if let url {
-            NSWorkspace.shared.activateFileViewerSelecting([url])
-        }
+        guard case .readyToInstall(let preparedUpdate)? = downloadStates[application.id] else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([preparedUpdate.artifactURL])
     }
 
-    private func applyUpdateResults(
-        _ results: [ApplicationIdentity: UpdateStatus]
-    ) {
+    private func applyUpdateResults(_ results: [ApplicationIdentity: UpdateStatus]) {
         for application in applications {
             guard let status = results[application.id] else {
                 updateStates[application.id] = .unavailable
                 continue
             }
-
             applyUpdateResult(status, for: application)
         }
     }
 
-    private func applyUpdateResult(
-        _ status: UpdateStatus,
-        for application: InstalledApplication
-    ) {
+    private func applyUpdateResult(_ status: UpdateStatus, for application: InstalledApplication) {
         switch status {
         case .updateAvailable(let candidate):
             updateStates[application.id] = .updateAvailable(candidate)
@@ -303,9 +218,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
             panel.directoryURL = Self.defaultDownloadDirectory()
             panel.prompt = "Allow Access"
             panel.message = "Choose where Luma should save updates. Downloads is selected by default."
-            panel.begin { response in
-                continuation.resume(returning: response == .OK ? panel.url : nil)
-            }
+            panel.begin { response in continuation.resume(returning: response == .OK ? panel.url : nil) }
         }
     }
 
@@ -318,9 +231,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
             panel.canCreateDirectories = true
             panel.prompt = "Choose"
             panel.message = "Choose where Luma should save updates."
-            panel.begin { response in
-                continuation.resume(returning: response == .OK ? panel.url : nil)
-            }
+            panel.begin { response in continuation.resume(returning: response == .OK ? panel.url : nil) }
         }
     }
 
