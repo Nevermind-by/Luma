@@ -3,7 +3,7 @@ import OSLog
 
 nonisolated protocol UpdateArtifactInspecting: Sendable {
     func inspect(
-        artifactURL: URL,
+        artifact: DownloadedArtifact,
         expectedApplication: ApplicationIdentity,
         expectedVersion: SoftwareVersion
     ) async throws -> PreparedUpdate
@@ -11,21 +11,21 @@ nonisolated protocol UpdateArtifactInspecting: Sendable {
 
 final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendable {
     enum InspectionError: LocalizedError, Equatable {
-        case unsupportedArtifact
+        case invalidDownloadedResponse
+        case unsupportedArtifactType(ArtifactType)
         case extractionFailed
-        case invalidDiskImage(diagnostic: String)
         case applicationNotFound
         case bundleIdentifierMismatch(expected: String, actual: String)
         case versionMismatch(expected: String, actual: String)
 
         var errorDescription: String? {
             switch self {
-            case .unsupportedArtifact:
-                return "Luma downloaded an unsupported update format."
+            case .invalidDownloadedResponse:
+                return "The downloaded response is not an application update."
+            case .unsupportedArtifactType(let type):
+                return "Luma recognized the downloaded file as \(type.rawValue), but that installer format is not supported yet."
             case .extractionFailed:
                 return "Luma could not extract the downloaded update."
-            case .invalidDiskImage(let diagnostic):
-                return "The downloaded disk image is not readable: \(diagnostic)"
             case .applicationNotFound:
                 return "No application bundle was found inside the downloaded update."
             case .bundleIdentifierMismatch(let expected, let actual):
@@ -36,11 +36,26 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
         }
     }
 
+    private let classifier: any ArtifactClassifying
+
+    init(classifier: any ArtifactClassifying = ArtifactClassifier()) {
+        self.classifier = classifier
+    }
+
     func inspect(
-        artifactURL: URL,
+        artifact: DownloadedArtifact,
         expectedApplication: ApplicationIdentity,
         expectedVersion: SoftwareVersion
     ) async throws -> PreparedUpdate {
+        let artifactType = classifier.classify(artifact)
+        LumaLog.updates.info(
+            "Downloaded artifact: filename=\(artifact.filename, privacy: .public), type=\(artifactType.rawValue, privacy: .public), mime=\(artifact.mimeType ?? "unknown", privacy: .public), bytes=\(artifact.byteCount, privacy: .public), finalURL=\(artifact.finalURL.absoluteString, privacy: .public)"
+        )
+
+        if artifactType == .html || (artifactType == .unknown && artifact.byteCount == 0) {
+            throw InspectionError.invalidDownloadedResponse
+        }
+
         let stagingDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("Luma-Update-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: stagingDirectory, withIntermediateDirectories: true)
@@ -52,15 +67,14 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
             }
         }
 
-        switch artifactFormat(for: artifactURL) {
+        switch artifactType {
         case .zip:
-            try extractZip(artifactURL, to: stagingDirectory)
-        case .dmg:
-            try extractDMG(artifactURL, to: stagingDirectory)
-        case .iso:
-            try extractISO(artifactURL, to: stagingDirectory)
-        case .unknown:
-            throw InspectionError.unsupportedArtifact
+            try extractZip(artifact.fileURL, to: stagingDirectory)
+        case .app:
+            let destination = stagingDirectory.appendingPathComponent(artifact.fileURL.lastPathComponent)
+            try FileManager.default.copyItem(at: artifact.fileURL, to: destination)
+        case .pkg, .dmg, .iso, .html, .unknown:
+            throw InspectionError.unsupportedArtifactType(artifactType)
         }
 
         guard let applicationURL = findApplication(in: stagingDirectory) else {
@@ -97,73 +111,11 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
         return PreparedUpdate(
             application: expectedApplication,
             version: expectedVersion,
-            artifactURL: artifactURL,
+            artifactURL: artifact.fileURL,
             applicationURL: applicationURL,
             bundleIdentifier: actualIdentifier,
             stagingDirectoryURL: stagingDirectory
         )
-    }
-
-    private enum ArtifactFormat {
-        case zip
-        case dmg
-        case iso
-        case unknown
-    }
-
-    private func artifactFormat(for artifactURL: URL) -> ArtifactFormat {
-        switch artifactURL.pathExtension.lowercased() {
-        case "zip":
-            return .zip
-        case "dmg":
-            return .dmg
-        case "iso":
-            return .iso
-        default:
-            break
-        }
-
-        if hasZipSignature(at: artifactURL) {
-            return .zip
-        }
-
-        if isDiskImage(at: artifactURL) {
-            return .dmg
-        }
-
-        return .unknown
-    }
-
-    private func hasZipSignature(at url: URL) -> Bool {
-        guard let handle = try? FileHandle(forReadingFrom: url) else {
-            return false
-        }
-        defer { try? handle.close() }
-
-        guard let header = try? handle.read(upToCount: 4), header.count >= 4 else {
-            return false
-        }
-
-        return header[0] == 0x50
-            && header[1] == 0x4B
-            && header[2] == 0x03
-            && (header[3] == 0x04 || header[3] == 0x05 || header[3] == 0x06)
-    }
-
-    private func isDiskImage(at url: URL) -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-        process.arguments = ["imageinfo", url.path]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
-        } catch {
-            return false
-        }
     }
 
     private func extractZip(_ archive: URL, to directory: URL) throws {
@@ -175,112 +127,6 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
         guard process.terminationStatus == 0 else {
             throw InspectionError.extractionFailed
         }
-    }
-
-    private func extractISO(_ image: URL, to directory: URL) throws {
-        let probe = diskImageDiagnostic(for: image)
-        if !probe.isReadable {
-            LumaLog.updates.error(
-                "Downloaded ISO is not readable. Diagnostic: \(probe.diagnostic, privacy: .public)"
-            )
-            throw InspectionError.invalidDiskImage(diagnostic: probe.diagnostic)
-        }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
-        process.arguments = ["-xf", image.path, "-C", directory.path]
-        process.standardOutput = FileHandle.nullDevice
-
-        let errorPipe = Pipe()
-        process.standardError = errorPipe
-        try process.run()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
-            let message = String(
-                data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
-                encoding: .utf8
-            )?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            LumaLog.updates.error(
-                "ISO extraction failed. hdiutil: \(probe.diagnostic, privacy: .public); tar: \(message ?? "unknown tar error", privacy: .public)"
-            )
-            throw InspectionError.extractionFailed
-        }
-    }
-
-    private struct DiskImageProbe {
-        let isReadable: Bool
-        let diagnostic: String
-    }
-
-    private func diskImageDiagnostic(for url: URL) -> DiskImageProbe {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-        process.arguments = ["imageinfo", "-plist", url.path]
-
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            return DiskImageProbe(isReadable: false, diagnostic: error.localizedDescription)
-        }
-
-        let stderr = String(
-            data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
-            encoding: .utf8
-        )?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        let stdout = String(
-            data: outputPipe.fileHandleForReading.readDataToEndOfFile(),
-            encoding: .utf8
-        )?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if process.terminationStatus == 0 {
-            return DiskImageProbe(isReadable: true, diagnostic: "hdiutil imageinfo OK")
-        }
-
-        let diagnostic = stderr?.isEmpty == false ? stderr! : (stdout?.isEmpty == false ? stdout! : "hdiutil imageinfo failed")
-        return DiskImageProbe(isReadable: false, diagnostic: diagnostic)
-    }
-
-    private func extractDMG(_ image: URL, to directory: URL) throws {
-        let mountPoint = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Luma-DMG-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: mountPoint, withIntermediateDirectories: true)
-        defer {
-            unmount(mountPoint)
-            try? FileManager.default.removeItem(at: mountPoint)
-        }
-
-        let attach = Process()
-        attach.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-        attach.arguments = ["attach", "-nobrowse", "-readonly", "-mountpoint", mountPoint.path, image.path]
-        try attach.run()
-        attach.waitUntilExit()
-        guard attach.terminationStatus == 0 else {
-            throw InspectionError.extractionFailed
-        }
-
-        guard let applicationURL = findApplication(in: mountPoint) else {
-            throw InspectionError.applicationNotFound
-        }
-
-        let destination = directory.appendingPathComponent(applicationURL.lastPathComponent)
-        try FileManager.default.copyItem(at: applicationURL, to: destination)
-    }
-
-    private func unmount(_ mountPoint: URL) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
-        process.arguments = ["detach", mountPoint.path, "-force"]
-        try? process.run()
-        process.waitUntilExit()
     }
 
     private func findApplication(in directory: URL) -> URL? {
