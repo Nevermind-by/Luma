@@ -332,6 +332,9 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
                 directory: activeDownload.destinationDirectory
             )
             self.activeDownloadResponse = response
+            if let responseURL = response.url {
+                self.activeDownloadFinalURL = responseURL
+            }
             self.activeDownloadDestination = destination
             completionHandler(destination)
         }
@@ -349,12 +352,7 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
     nonisolated func downloadDidFinish(_ download: WKDownload) {
         Task { @MainActor [weak self] in
             guard let self,
-                  self.activeDownload != nil,
-                  self.activeDownloadDestination != nil else {
-                return
-            }
-
-            guard let activeDownload = self.activeDownload,
+                  let activeDownload = self.activeDownload,
                   let destination = self.activeDownloadDestination else {
                 return
             }
@@ -386,21 +384,22 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
 
     private func uniqueDestinationURL(filename: String, directory: URL) -> URL {
         let initialURL = directory.appendingPathComponent(filename)
-        guard !FileManager.default.fileExists(atPath: initialURL.path) else {
-            let base = initialURL.deletingPathExtension().lastPathComponent
-            let ext = initialURL.pathExtension
+        if !FileManager.default.fileExists(atPath: initialURL.path) {
+            return initialURL
+        }
 
-            for index in 2...10_000 {
-                let candidateName = ext.isEmpty
-                    ? "\(base) (\(index))"
-                    : "\(base) (\(index)).\(ext)"
-                let candidate = directory.appendingPathComponent(candidateName)
-                if !FileManager.default.fileExists(atPath: candidate.path) {
-                    return candidate
-                }
+        let base = initialURL.deletingPathExtension().lastPathComponent
+        let ext = initialURL.pathExtension
+        for index in 2...10_000 {
+            let candidateName = ext.isEmpty
+                ? "\(base) (\(index))"
+                : "\(base) (\(index)).\(ext)"
+            let candidate = directory.appendingPathComponent(candidateName)
+            if !FileManager.default.fileExists(atPath: candidate.path) {
+                return candidate
             }
         }
 
-        return initialURL
+        return directory.appendingPathComponent("Luma-\(UUID().uuidString).download")
     }
 }
