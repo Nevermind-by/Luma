@@ -220,6 +220,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
                 updateStates[application.id] = .upToDate
                 downloadStates[application.id] = .installed(preparedUpdate.version)
             case .userActionRequired:
+                pendingUpdateStore.markInstallerOpened(for: application.id)
                 downloadStates[application.id] = .awaitingUserInstallation(preparedUpdate.version)
                 startExternalInstallationWatch(
                     for: application,
@@ -247,6 +248,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
         )
 
         do {
+            pendingUpdateStore.markInstallerOpened(for: application.id)
             let fileAccess = pendingUpdateStore.beginFileAccess(for: application.id)
             let installerUpdate = fileAccess.map { preparedUpdate.replacingArtifactURL(with: $0.url) } ?? preparedUpdate
             defer { fileAccess?.stop() }
@@ -339,7 +341,12 @@ final class ApplicationLibraryViewModel: ObservableObject {
             return
         }
 
-        downloadStates[application.id] = preparedUpdateState(from: pending, fileURL: resolvedURL, for: application)
+        if pending.installerOpened {
+            downloadStates[application.id] = .awaitingUserInstallation(pendingVersion)
+            startExternalInstallationWatch(for: application, expectedVersion: pendingVersion)
+        } else {
+            downloadStates[application.id] = preparedUpdateState(from: pending, fileURL: resolvedURL, for: application)
+        }
     }
 
     private func preparedUpdateState(
