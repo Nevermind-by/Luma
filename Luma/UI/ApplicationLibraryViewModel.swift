@@ -19,7 +19,6 @@ final class ApplicationLibraryViewModel: ObservableObject {
     private let applicationInstaller: any ApplicationInstalling
     private let authenticationManager: AppsTorrentAuthenticationManager
     private let downloadDestinationStore: DownloadDestinationStore
-    private let appsTorrentBrowserSession: AppsTorrentBrowserSession
 
     init(
         scanner: any ApplicationScanning = ApplicationScanner(),
@@ -30,8 +29,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
         artifactInspector: any UpdateArtifactInspecting = UpdateArtifactInspector(),
         applicationInstaller: (any ApplicationInstalling)? = nil,
         authenticationManager: AppsTorrentAuthenticationManager? = nil,
-        downloadDestinationStore: DownloadDestinationStore? = nil,
-        appsTorrentBrowserSession: AppsTorrentBrowserSession? = nil
+        downloadDestinationStore: DownloadDestinationStore? = nil
     ) {
         self.scanner = scanner
         self.updateCoordinator = updateCoordinator
@@ -42,7 +40,6 @@ final class ApplicationLibraryViewModel: ObservableObject {
         )
         self.authenticationManager = authenticationManager ?? AppsTorrentAuthenticationManager()
         self.downloadDestinationStore = downloadDestinationStore ?? DownloadDestinationStore()
-        self.appsTorrentBrowserSession = appsTorrentBrowserSession ?? AppsTorrentBrowserSession.shared
         self.appsTorrentConnection = UpdateSourceConnection(
             id: "appstorrent",
             name: "AppsTorrent",
@@ -144,10 +141,20 @@ final class ApplicationLibraryViewModel: ObservableObject {
         }
         defer { destinationDirectory.stopAccessingSecurityScopedResource() }
 
+        let cookies = await authenticationManager.cookies(for: option.url)
         downloadStates[application.id] = .downloading(DownloadProgress(bytesWritten: 0, totalBytes: nil))
 
         do {
-            let artifact = try await appsTorrentBrowserSession.download(option.url, to: destinationDirectory)
+            let artifact = try await downloadManager.download(
+                option,
+                to: destinationDirectory,
+                cookies: cookies
+            ) { [weak self] progress in
+                Task { @MainActor [weak self] in
+                    self?.downloadStates[application.id] = .downloading(progress)
+                }
+            }
+
             let preparedUpdate = try await artifactInspector.inspect(
                 artifact: artifact,
                 expectedApplication: application.id,
