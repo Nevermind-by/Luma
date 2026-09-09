@@ -196,21 +196,13 @@ struct ApplicationRowView: View {
                 Label("Finish in macOS", systemImage: "macwindow.badge.plus")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.tint)
-                Text("Complete the installer, then check again.")
+                Text("Complete the installer. Luma will detect the new version automatically.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.trailing)
-                HStack(spacing: 6) {
-                    Button("Check Again") {
-                        onCheck()
-                    }
-                    .controlSize(.small)
-                    .disabled(!isUpdateCheckEnabled)
-
-                    Text(version.rawValue)
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
+                Text(version.rawValue)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
 
         case .installed(let version):
