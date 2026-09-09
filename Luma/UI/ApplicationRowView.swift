@@ -7,6 +7,7 @@ struct ApplicationRowView: View {
     let isUpdateCheckEnabled: Bool
     let onCheck: () -> Void
     let onDownload: () -> Void
+    let onCancelDownload: () -> Void
     let onInstall: () -> Void
     let onShowDownloadedFile: () -> Void
 
@@ -145,17 +146,22 @@ struct ApplicationRowView: View {
             .controlSize(.small)
 
         case .downloading(let progress):
-            if let fraction = progress.fractionCompleted {
-                HStack(spacing: 8) {
+            HStack(spacing: 8) {
+                if let fraction = progress.fractionCompleted {
                     ProgressView(value: fraction)
                         .frame(width: 90)
                     Text("\(Int(fraction * 100))%")
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.secondary)
+                } else {
+                    ProgressView()
+                        .controlSize(.small)
                 }
-            } else {
-                ProgressView()
-                    .controlSize(.small)
+
+                Button("Cancel") {
+                    onCancelDownload()
+                }
+                .controlSize(.small)
             }
 
         case .readyToInstall(let preparedUpdate):
