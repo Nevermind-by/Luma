@@ -257,11 +257,11 @@ final class ApplicationInstaller: ApplicationInstalling {
             return false
         }
 
-        let version = SoftwareVersion(
-            bundleVersion: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
-            buildVersion: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
-        )
+        guard let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+              !version.isEmpty else {
+            return false
+        }
 
-        return version == expected.version
+        return SoftwareVersion(version) == expected.version
     }
 }
