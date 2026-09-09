@@ -183,9 +183,24 @@ final class ApplicationLibraryViewModel: ObservableObject {
                 )
             )
             downloadStates[application.id] = .readyToInstall(preparedUpdate)
+        } catch is CancellationError {
+            downloadStates[application.id] = .notStarted
+        } catch let error as DownloadManager.DownloadError where error == .cancelled {
+            downloadStates[application.id] = .notStarted
         } catch {
             downloadStates[application.id] = .failed(error.localizedDescription)
         }
+    }
+
+    func cancelDownload(for application: InstalledApplication) {
+        guard case .downloading = downloadStates[application.id],
+              case .updateAvailable(let candidate)? = updateStates[application.id],
+              let option = candidate.downloadOptions.first(where: { $0.kind == .direct }) else {
+            return
+        }
+
+        downloadManager.cancelDownload(for: option.url)
+        downloadStates[application.id] = .notStarted
     }
 
     func installUpdate(for application: InstalledApplication) async {
