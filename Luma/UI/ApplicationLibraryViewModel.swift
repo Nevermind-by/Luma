@@ -32,7 +32,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
         artifactInspector: any UpdateArtifactInspecting = UpdateArtifactInspector(),
         applicationInstaller: (any ApplicationInstalling)? = nil,
         authenticationManager: AppsTorrentAuthenticationManager? = nil,
-        downloadDestinationStore: DownloadDestinationStore = DownloadDestinationStore(),
+        downloadDestinationStore: DownloadDestinationStore? = nil,
         appsTorrentBrowserSession: AppsTorrentBrowserSession? = nil
     ) {
         self.scanner = scanner
@@ -43,14 +43,14 @@ final class ApplicationLibraryViewModel: ObservableObject {
             destinationStore: InstallDestinationStore()
         )
         self.authenticationManager = authenticationManager ?? AppsTorrentAuthenticationManager()
-        self.downloadDestinationStore = downloadDestinationStore
+        self.downloadDestinationStore = downloadDestinationStore ?? DownloadDestinationStore()
         self.appsTorrentBrowserSession = appsTorrentBrowserSession ?? AppsTorrentBrowserSession.shared
         self.appsTorrentConnection = UpdateSourceConnection(
             id: "appstorrent",
             name: "AppsTorrent",
             state: self.authenticationManager.isLoginCompleted ? .connected : .signInRequired
         )
-        self.downloadDirectoryURL = downloadDestinationStore.savedDirectory() ?? Self.defaultDownloadDirectory()
+        self.downloadDirectoryURL = self.downloadDestinationStore.savedDirectory() ?? Self.defaultDownloadDirectory()
     }
 
     var canCheckAppsTorrent: Bool {
