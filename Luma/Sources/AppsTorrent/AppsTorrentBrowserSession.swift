@@ -35,6 +35,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
     private var activeDownload: PendingDownload?
     private var activeDownloadDestination: URL?
     private var activeDownloadResponse: URLResponse?
+    private var activeDownloadFinalURL: URL?
     private var loadedURL: URL?
     private let captureTimeoutNanoseconds: UInt64 = 30_000_000_000
 
@@ -84,6 +85,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
             )
             activeDownloadDestination = nil
             activeDownloadResponse = nil
+            activeDownloadFinalURL = nil
             loadedURL = url
             state = .downloading(url)
             webView.load(URLRequest(url: url))
@@ -160,8 +162,10 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
 
         let destination = activeDownloadDestination
         let response = activeDownloadResponse
+        let finalURL = activeDownloadFinalURL ?? response?.url ?? activeDownload.url
         activeDownloadDestination = nil
         activeDownloadResponse = nil
+        activeDownloadFinalURL = nil
 
         switch result {
         case .failure(let error):
@@ -177,7 +181,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
             let byteCount = Int64(resourceValues?.fileSize ?? 0)
             activeDownload.continuation.resume(returning: DownloadedArtifact(
                 originalURL: activeDownload.url,
-                finalURL: response?.url ?? activeDownload.url,
+                finalURL: finalURL,
                 fileURL: destination,
                 filename: destination.lastPathComponent,
                 mimeType: response?.mimeType,
@@ -309,8 +313,19 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
                 directory: activeDownload.destinationDirectory
             )
             activeDownloadResponse = response
+            if let responseURL = response.url {
+                activeDownloadFinalURL = responseURL
+            }
             activeDownloadDestination = destination
             completionHandler(destination)
+        }
+    }
+
+    nonisolated func download(_ download: WKDownload, didReceiveFinalURL url: URL) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.activeDownloadFinalURL = url
+            LumaLog.appsTorrent.info("AppsTorrent download final URL: \(url.absoluteString, privacy: .public)")
         }
     }
 
@@ -319,7 +334,7 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
             guard let self, activeDownload != nil, activeDownloadDestination != nil else { return }
             finishActiveDownload(with: .success(DownloadedArtifact(
                 originalURL: activeDownload!.url,
-                finalURL: activeDownloadResponse?.url ?? activeDownload!.url,
+                finalURL: activeDownloadFinalURL ?? activeDownloadResponse?.url ?? activeDownload!.url,
                 fileURL: activeDownloadDestination!,
                 filename: activeDownloadDestination!.lastPathComponent,
                 mimeType: activeDownloadResponse?.mimeType,
@@ -348,7 +363,7 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
         for index in 2...10_000 {
             let candidateName = ext.isEmpty ? "\(base) (\(index))" : "\(base) (\(index)).\(ext)"
             let candidate = directory.appendingPathComponent(candidateName)
-            if !FileManager.default.fileExists(atPath: candidate.path) {
+            if !FileManager.default.fileExists(atPath: candidate) {
                 return candidate
             }
         }
