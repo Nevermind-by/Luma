@@ -196,7 +196,10 @@ final class ApplicationLibraryViewModel: ObservableObject {
                     expectedVersion: candidate.version
                 )
                 downloadStates[application.id] = .readyToInstall(preparedUpdate)
-            } catch let inspectionError as UpdateArtifactInspector.InspectionError where inspectionError == .unsupportedArtifact {
+            } catch {
+                // AppsTorrent sometimes serves a browser-mediated download to the
+                // same direct URL. Retry once through the persistent WebKit session
+                // whenever the URLSession artifact cannot be inspected.
                 try? FileManager.default.removeItem(at: destinationURL)
                 let browserDestination = try await appsTorrentBrowserSession.download(
                     option.url,
