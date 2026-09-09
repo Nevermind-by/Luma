@@ -6,7 +6,7 @@ protocol ApplicationInstalling {
     func install(
         _ preparedUpdate: PreparedUpdate,
         replacing application: InstalledApplication
-    ) async throws
+    ) async throws -> InstallationResult
 }
 
 @MainActor
@@ -18,6 +18,7 @@ final class ApplicationInstaller: ApplicationInstalling {
         case applicationStillRunning
         case replacementFailed
         case verificationFailed
+        case installerOpenFailed
         case cancelled
 
         var errorDescription: String? {
@@ -34,6 +35,8 @@ final class ApplicationInstaller: ApplicationInstalling {
                 return "Luma could not replace the installed application. The original app was restored when possible."
             case .verificationFailed:
                 return "The installed application did not pass the final identity and version check."
+            case .installerOpenFailed:
+                return "Luma could not open the downloaded installer."
             case .cancelled:
                 return "Installation was cancelled."
             }
@@ -49,13 +52,59 @@ final class ApplicationInstaller: ApplicationInstalling {
     func install(
         _ preparedUpdate: PreparedUpdate,
         replacing application: InstalledApplication
-    ) async throws {
+    ) async throws -> InstallationResult {
+        switch preparedUpdate.payload {
+        case .application:
+            return try await replaceApplication(
+                preparedUpdate,
+                replacing: application
+            )
+        case .diskImage(let installerURL):
+            guard FileManager.default.fileExists(atPath: installerURL.path) else {
+                throw InstallationError.installerOpenFailed
+            }
+
+            LumaLog.updates.info(
+                "Opening external installer: \(installerURL.path, privacy: .public)"
+            )
+            let didOpen = NSWorkspace.shared.open(installerURL)
+            guard didOpen else {
+                throw InstallationError.installerOpenFailed
+            }
+
+            return .userActionRequired
+        case .package(let installerURL):
+            guard FileManager.default.fileExists(atPath: installerURL.path) else {
+                throw InstallationError.installerOpenFailed
+            }
+
+            LumaLog.updates.info(
+                "Opening external package installer: \(installerURL.path, privacy: .public)"
+            )
+            let didOpen = NSWorkspace.shared.open(installerURL)
+            guard didOpen else {
+                throw InstallationError.installerOpenFailed
+            }
+
+            return .userActionRequired
+        }
+    }
+
+    private func replaceApplication(
+        _ preparedUpdate: PreparedUpdate,
+        replacing application: InstalledApplication
+    ) async throws -> InstallationResult {
+        guard let sourceURL = applicationURL(from: preparedUpdate) else {
+            throw InstallationError.applicationNotFound
+        }
+
         defer {
-            try? FileManager.default.removeItem(at: preparedUpdate.stagingDirectoryURL)
+            if let stagingDirectoryURL = preparedUpdate.stagingDirectoryURL {
+                try? FileManager.default.removeItem(at: stagingDirectoryURL)
+            }
         }
 
         let fileManager = FileManager.default
-        let sourceURL = preparedUpdate.applicationURL
         let installedURL = application.bundleURL
         let installedDirectory = installedURL.deletingLastPathComponent()
 
@@ -78,10 +127,6 @@ final class ApplicationInstaller: ApplicationInstalling {
             if scopeStarted {
                 destinationDirectory.stopAccessingSecurityScopedResource()
             }
-        }
-
-        guard fileManager.fileExists(atPath: installedURL.path) else {
-            throw InstallationError.applicationNotFound
         }
 
         if let runningApplication = NSWorkspace.shared.runningApplications.first(where: {
@@ -131,6 +176,15 @@ final class ApplicationInstaller: ApplicationInstalling {
         } catch {
             throw InstallationError.replacementFailed
         }
+
+        return .completed
+    }
+
+    private func applicationURL(from preparedUpdate: PreparedUpdate) -> URL? {
+        guard case .application(let url) = preparedUpdate.payload else {
+            return nil
+        }
+        return url
     }
 
     private func authorizedDestinationDirectory(
@@ -212,7 +266,7 @@ final class ApplicationInstaller: ApplicationInstalling {
         expected: PreparedUpdate
     ) -> Bool {
         guard let bundle = Bundle(url: url),
-              bundle.bundleIdentifier == expected.bundleIdentifier else {
+              bundle.bundleIdentifier == expected.application.bundleIdentifier else {
             return false
         }
 
