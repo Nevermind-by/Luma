@@ -60,27 +60,13 @@ final class ApplicationInstaller: ApplicationInstalling {
                 preparedUpdate,
                 replacing: application
             )
-        case .diskImage(let installerURL):
+        case .diskImage(let installerURL), .package(let installerURL), .externalInstaller(let installerURL):
             guard FileManager.default.fileExists(atPath: installerURL.path) else {
                 throw InstallationError.installerOpenFailed
             }
 
             LumaLog.updates.info(
                 "Opening external installer: \(installerURL.path, privacy: .public)"
-            )
-            let didOpen = NSWorkspace.shared.open(installerURL)
-            guard didOpen else {
-                throw InstallationError.installerOpenFailed
-            }
-
-            return .userActionRequired
-        case .package(let installerURL):
-            guard FileManager.default.fileExists(atPath: installerURL.path) else {
-                throw InstallationError.installerOpenFailed
-            }
-
-            LumaLog.updates.info(
-                "Opening external package installer: \(installerURL.path, privacy: .public)"
             )
             let didOpen = NSWorkspace.shared.open(installerURL)
             guard didOpen else {
@@ -267,14 +253,15 @@ final class ApplicationInstaller: ApplicationInstalling {
         expected: PreparedUpdate
     ) -> Bool {
         guard let bundle = Bundle(url: url),
-              bundle.bundleIdentifier == expected.application.bundleIdentifier else {
+              bundle.bundleIdentifier == expected.bundleIdentifier else {
             return false
         }
 
-        let version = (bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
-            ?? (bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String)
-            ?? ""
+        let version = SoftwareVersion(
+            bundleVersion: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+            buildVersion: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        )
 
-        return SoftwareVersion(version) == expected.version
+        return version == expected.version
     }
 }
