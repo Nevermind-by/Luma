@@ -8,6 +8,8 @@ nonisolated protocol DownloadManaging: Sendable {
         cookies: [HTTPCookie],
         progress: @escaping @Sendable (DownloadProgress) -> Void
     ) async throws -> DownloadedArtifact
+
+    func cancelDownload(for url: URL)
 }
 
 final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManaging, @unchecked Sendable {
@@ -16,6 +18,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         case invalidDestination
         case invalidResponse(statusCode: Int)
         case downloadFailed
+        case cancelled
 
         var errorDescription: String? {
             switch self {
@@ -27,11 +30,14 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
                 return "The download server returned HTTP status \(statusCode)."
             case .downloadFailed:
                 return "The update download failed."
+            case .cancelled:
+                return "The download was cancelled."
             }
         }
     }
 
     private struct Job {
+        let task: URLSessionDownloadTask
         let originalURL: URL
         let requestedFilename: String
         let destinationDirectory: URL
@@ -86,6 +92,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<DownloadedArtifact, Error>) in
             lock.lock()
             jobs[task.taskIdentifier] = Job(
+                task: task,
                 originalURL: option.url,
                 requestedFilename: requestedFilename,
                 destinationDirectory: directory,
@@ -95,6 +102,23 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
             lock.unlock()
             task.resume()
         }
+    }
+
+    func cancelDownload(for url: URL) {
+        let cancelledJob: Job?
+        lock.lock()
+        if let taskIdentifier = jobs.first(where: { $0.value.originalURL == url })?.key {
+            cancelledJob = jobs.removeValue(forKey: taskIdentifier)
+        } else {
+            cancelledJob = nil
+        }
+        lock.unlock()
+
+        guard let cancelledJob else { return }
+
+        cancelledJob.task.cancel()
+        LumaLog.appsTorrent.info("Download cancelled: \(url.absoluteString, privacy: .public)")
+        cancelledJob.continuation.resume(throwing: DownloadError.cancelled)
     }
 
     private func sanitizedFilename(from url: URL) -> String {
