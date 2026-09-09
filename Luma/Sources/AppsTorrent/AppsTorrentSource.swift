@@ -29,7 +29,7 @@ nonisolated struct AppsTorrentSource: UpdateSource {
     }
 
     func checkForUpdate(for application: InstalledApplication) async throws -> UpdateCandidate? {
-        LumaLog.appsTorrent.info("Checking \(application.name, privacy: .public) version \(application.version.rawValue, privacy: .public)")
+        LumaLog.appsTorrent.info("Checking \(application.name, privacy: .public) version \(application.version.rawValue, privacy: .public), installationSource=\(installationSourceDescription(application.installationSource), privacy: .public)")
 
         let pageURLs = try await pageURLs(for: application)
         LumaLog.appsTorrent.info("Resolved \(pageURLs.count, privacy: .public) AppsTorrent candidate pages for \(application.name, privacy: .public)")
@@ -37,15 +37,17 @@ nonisolated struct AppsTorrentSource: UpdateSource {
         var releases: [AppsTorrentRelease] = []
         var firstPageError: Error?
 
-        for pageURL in pageURLs.prefix(maxCandidatePages) {
+        for (index, pageURL) in pageURLs.prefix(maxCandidatePages).enumerated() {
             do {
+                LumaLog.appsTorrent.info("Fetching candidate page \(index + 1, privacy: .public): \(pageURL.absoluteString, privacy: .public)")
                 let html = try await pageProvider.fetchPage(at: pageURL)
                 let release = try parser.parse(html: html, pageURL: pageURL)
                 releases.append(release)
-                LumaLog.appsTorrent.info("Parsed release \(release.version.rawValue, privacy: .public) [\(release.distributionVariant.rawValue, privacy: .public)]")
+                let optionKinds = release.downloadOptions.map(\.kind.rawValue).joined(separator: ",")
+                LumaLog.appsTorrent.info("Parsed release \(release.version.rawValue, privacy: .public) [\(release.distributionVariant.rawValue, privacy: .public)], options=\(optionKinds, privacy: .public)")
             } catch {
                 firstPageError = firstPageError ?? error
-                LumaLog.appsTorrent.error("Failed to parse AppsTorrent candidate: \(error.localizedDescription, privacy: .public)")
+                LumaLog.appsTorrent.error("Candidate page failed: url=\(pageURL.absoluteString, privacy: .public), error=\(error.localizedDescription, privacy: .public)")
             }
         }
 
@@ -60,6 +62,7 @@ nonisolated struct AppsTorrentSource: UpdateSource {
             releases,
             installationSource: application.installationSource
         )
+        LumaLog.appsTorrent.info("Variant filtering kept \(releasesForInstallation.count, privacy: .public) of \(releases.count, privacy: .public) releases")
 
         guard let latestRelease = releasesForInstallation.max(by: isReleaseOlder) else {
             return nil
@@ -84,11 +87,14 @@ nonisolated struct AppsTorrentSource: UpdateSource {
 
     private func pageURLs(for application: InstalledApplication) async throws -> [URL] {
         if let mappedURL = pageURLsByBundleIdentifier[application.id.bundleIdentifier] {
-            LumaLog.appsTorrent.info("Using mapped AppsTorrent page for \(application.name, privacy: .public)")
+            LumaLog.appsTorrent.info("Using mapped AppsTorrent page for \(application.name, privacy: .public): \(mappedURL.absoluteString, privacy: .public)")
             return [mappedURL]
         }
 
-        return try await resolver.resolveCandidates(for: application).map(\.url)
+        LumaLog.appsTorrent.info("Resolving AppsTorrent candidates by search for \(application.name, privacy: .public)")
+        let resolved = try await resolver.resolveCandidates(for: application).map(\.url)
+        LumaLog.appsTorrent.info("Search resolver returned \(resolved.count, privacy: .public) candidate pages")
+        return resolved
     }
 
     private func preferredReleases(
@@ -113,6 +119,19 @@ nonisolated struct AppsTorrentSource: UpdateSource {
             return .standard
         case .unknown:
             return nil
+        }
+    }
+
+    private func installationSourceDescription(
+        _ source: ApplicationInstallationSource
+    ) -> String {
+        switch source {
+        case .appStore:
+            return "appStore"
+        case .direct:
+            return "direct"
+        case .unknown:
+            return "unknown"
         }
     }
 
