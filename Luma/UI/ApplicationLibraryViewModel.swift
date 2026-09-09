@@ -19,6 +19,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
     private let applicationInstaller: any ApplicationInstalling
     private let authenticationManager: AppsTorrentAuthenticationManager
     private let downloadDestinationStore: DownloadDestinationStore
+    private let pendingUpdateStore: PendingUpdateStore
 
     init(
         scanner: any ApplicationScanning = ApplicationScanner(),
@@ -29,7 +30,8 @@ final class ApplicationLibraryViewModel: ObservableObject {
         artifactInspector: any UpdateArtifactInspecting = UpdateArtifactInspector(),
         applicationInstaller: (any ApplicationInstalling)? = nil,
         authenticationManager: AppsTorrentAuthenticationManager? = nil,
-        downloadDestinationStore: DownloadDestinationStore? = nil
+        downloadDestinationStore: DownloadDestinationStore? = nil,
+        pendingUpdateStore: PendingUpdateStore? = nil
     ) {
         self.scanner = scanner
         self.updateCoordinator = updateCoordinator
@@ -40,6 +42,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
         )
         self.authenticationManager = authenticationManager ?? AppsTorrentAuthenticationManager()
         self.downloadDestinationStore = downloadDestinationStore ?? DownloadDestinationStore()
+        self.pendingUpdateStore = pendingUpdateStore ?? PendingUpdateStore()
         self.appsTorrentConnection = UpdateSourceConnection(
             id: "appstorrent",
             name: "AppsTorrent",
@@ -63,6 +66,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
         updateStates = [:]
         downloadStates = [:]
         downloadDirectoryURL = downloadDestinationStore.savedDirectory() ?? Self.defaultDownloadDirectory()
+        restorePendingUpdates()
         await refreshAppsTorrentConnection()
     }
 
@@ -96,7 +100,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
             applyUpdateResult(status, for: application)
         } else {
             updateStates[application.id] = .unavailable
-            downloadStates[application.id] = nil
+            restorePendingUpdate(for: application)
         }
     }
 
@@ -161,6 +165,13 @@ final class ApplicationLibraryViewModel: ObservableObject {
                 artifactURL: artifact.fileURL,
                 payload: .externalInstaller(artifact.fileURL)
             )
+            pendingUpdateStore.save(
+                PendingExternalUpdate(
+                    bundleIdentifier: application.id.bundleIdentifier,
+                    version: candidate.version.rawValue,
+                    fileURL: artifact.fileURL
+                )
+            )
             downloadStates[application.id] = .readyToInstall(preparedUpdate)
         } catch {
             downloadStates[application.id] = .failed(error.localizedDescription)
@@ -176,6 +187,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
             switch result {
             case .completed:
                 applications = await scanner.scan()
+                pendingUpdateStore.remove(for: application.id)
                 updateStates[application.id] = .upToDate
                 downloadStates[application.id] = .installed(preparedUpdate.version)
             case .userActionRequired:
@@ -201,6 +213,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
         for application in applications {
             guard let status = results[application.id] else {
                 updateStates[application.id] = .unavailable
+                restorePendingUpdate(for: application)
                 continue
             }
             applyUpdateResult(status, for: application)
@@ -211,14 +224,58 @@ final class ApplicationLibraryViewModel: ObservableObject {
         switch status {
         case .updateAvailable(let candidate):
             updateStates[application.id] = .updateAvailable(candidate)
-            downloadStates[application.id] = .notStarted
+            if let pending = pendingUpdateStore.pending(for: application.id),
+               pending.version == candidate.version.rawValue,
+               FileManager.default.fileExists(atPath: pending.fileURL.path) {
+                downloadStates[application.id] = preparedUpdateState(from: pending, for: application)
+            } else {
+                if pendingUpdateStore.pending(for: application.id) != nil {
+                    pendingUpdateStore.remove(for: application.id)
+                }
+                downloadStates[application.id] = .notStarted
+            }
         case .upToDate:
+            pendingUpdateStore.remove(for: application.id)
             updateStates[application.id] = .upToDate
             downloadStates[application.id] = nil
         case .unavailable:
             updateStates[application.id] = .unavailable
-            downloadStates[application.id] = nil
+            restorePendingUpdate(for: application)
         }
+    }
+
+    private func restorePendingUpdates() {
+        for application in applications {
+            restorePendingUpdate(for: application)
+        }
+    }
+
+    private func restorePendingUpdate(for application: InstalledApplication) {
+        guard let pending = pendingUpdateStore.pending(for: application.id) else {
+            return
+        }
+
+        guard FileManager.default.fileExists(atPath: pending.fileURL.path) else {
+            pendingUpdateStore.remove(for: application.id)
+            downloadStates[application.id] = nil
+            return
+        }
+
+        downloadStates[application.id] = preparedUpdateState(from: pending, for: application)
+    }
+
+    private func preparedUpdateState(
+        from pending: PendingExternalUpdate,
+        for application: InstalledApplication
+    ) -> ApplicationDownloadState {
+        .readyToInstall(
+            PreparedUpdate(
+                application: application.id,
+                version: SoftwareVersion(pending.version),
+                artifactURL: pending.fileURL,
+                payload: .externalInstaller(pending.fileURL)
+            )
+        )
     }
 
     private func chooseDownloadDirectoryForFirstUse() async -> URL? {
