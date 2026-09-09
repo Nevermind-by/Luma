@@ -23,7 +23,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
     private struct PendingDownload {
         let url: URL
         let destinationDirectory: URL
-        let continuation: CheckedContinuation<URL, Error>
+        let continuation: CheckedContinuation<DownloadedArtifact, Error>
     }
 
     @Published private(set) var state: State = .idle
@@ -34,6 +34,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
     private var activeTimeoutTask: Task<Void, Never>?
     private var activeDownload: PendingDownload?
     private var activeDownloadDestination: URL?
+    private var activeDownloadResponse: URLResponse?
     private var loadedURL: URL?
     private let captureTimeoutNanoseconds: UInt64 = 30_000_000_000
 
@@ -65,28 +66,27 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
 
     func loadAndCaptureHTML(at url: URL) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
-            pendingCaptures.append(
-                PendingCapture(url: url, continuation: continuation)
-            )
+            pendingCaptures.append(PendingCapture(url: url, continuation: continuation))
             processNextCaptureIfNeeded()
         }
     }
 
-    func download(_ url: URL, to directory: URL) async throws -> URL {
+    func download(_ url: URL, to directory: URL) async throws -> DownloadedArtifact {
         guard activeDownload == nil else {
             throw BrowserError.downloadInProgress
         }
 
         return try await withCheckedThrowingContinuation { continuation in
-            self.activeDownload = PendingDownload(
+            activeDownload = PendingDownload(
                 url: url,
                 destinationDirectory: directory,
                 continuation: continuation
             )
-            self.activeDownloadDestination = nil
-            self.loadedURL = url
-            self.state = .downloading(url)
-            self.webView.load(URLRequest(url: url))
+            activeDownloadDestination = nil
+            activeDownloadResponse = nil
+            loadedURL = url
+            state = .downloading(url)
+            webView.load(URLRequest(url: url))
         }
     }
 
@@ -110,8 +110,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
             let types = WKWebsiteDataStore.allWebsiteDataTypes()
             dataStore.fetchDataRecords(ofTypes: types) { records in
                 let matchingRecords = records.filter { record in
-                    let name = record.displayName.lowercased()
-                    return name.contains("appstorrent.ru")
+                    record.displayName.lowercased().contains("appstorrent.ru")
                 }
 
                 guard !matchingRecords.isEmpty else {
@@ -119,10 +118,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
                     return
                 }
 
-                dataStore.removeData(
-                    ofTypes: types,
-                    for: matchingRecords
-                ) {
+                dataStore.removeData(ofTypes: types, for: matchingRecords) {
                     continuation.resume()
                 }
             }
@@ -141,7 +137,6 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
         activeTimeoutTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: self?.captureTimeoutNanoseconds ?? 30_000_000_000)
             guard !Task.isCancelled else { return }
-
             await MainActor.run {
                 self?.finishActiveCapture(with: .failure(BrowserError.timeout))
             }
@@ -159,30 +154,52 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
         processNextCaptureIfNeeded()
     }
 
-    private func finishActiveDownload(with result: Result<URL, Error>) {
+    private func finishActiveDownload(with result: Result<DownloadedArtifact, Error>) {
         guard let activeDownload else { return }
         self.activeDownload = nil
+
         let destination = activeDownloadDestination
+        let response = activeDownloadResponse
         activeDownloadDestination = nil
-        activeDownload.continuation.resume(with: result.map { _ in destination ?? activeDownload.destinationDirectory })
+        activeDownloadResponse = nil
+
+        switch result {
+        case .failure(let error):
+            activeDownload.continuation.resume(throwing: error)
+        case .success:
+            guard let destination else {
+                activeDownload.continuation.resume(throwing: BrowserError.downloadFailed)
+                processNextCaptureIfNeeded()
+                return
+            }
+
+            let resourceValues = try? destination.resourceValues(forKeys: [.fileSizeKey])
+            let byteCount = Int64(resourceValues?.fileSize ?? 0)
+            activeDownload.continuation.resume(returning: DownloadedArtifact(
+                originalURL: activeDownload.url,
+                finalURL: response?.url ?? activeDownload.url,
+                fileURL: destination,
+                filename: destination.lastPathComponent,
+                mimeType: response?.mimeType,
+                byteCount: byteCount
+            ))
+        }
+
         processNextCaptureIfNeeded()
     }
 
     private func captureCurrentHTML() {
         webView.evaluateJavaScript("document.documentElement.outerHTML") { [weak self] value, error in
             guard let self else { return }
-
             Task { @MainActor in
                 if let error {
                     self.finishActiveCapture(with: .failure(error))
                     return
                 }
-
                 guard let html = value as? String else {
                     self.finishActiveCapture(with: .failure(BrowserError.invalidHTML))
                     return
                 }
-
                 self.finishActiveCapture(with: .success(html))
             }
         }
@@ -216,44 +233,32 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
 }
 
 extension AppsTorrentBrowserSession: WKNavigationDelegate {
-    nonisolated func webView(
-        _ webView: WKWebView,
-        didFinish navigation: WKNavigation!
-    ) {
+    nonisolated func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         Task { @MainActor [weak self] in
             guard let self, let url = webView.url else { return }
-            self.loadedURL = url
-
-            if self.activeCapture != nil {
-                self.state = .ready(url)
-                self.captureCurrentHTML()
-            } else if self.activeDownload == nil {
-                self.state = .ready(url)
+            loadedURL = url
+            if activeCapture != nil {
+                state = .ready(url)
+                captureCurrentHTML()
+            } else if activeDownload == nil {
+                state = .ready(url)
             }
         }
     }
 
-    nonisolated func webView(
-        _ webView: WKWebView,
-        didFail navigation: WKNavigation!,
-        withError error: Error
-    ) {
+    nonisolated func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         Task { @MainActor [weak self] in
-            self?.state = .failed(error.localizedDescription)
-            self?.finishActiveCapture(with: .failure(error))
-            self?.finishActiveDownload(with: .failure(error))
+            state = .failed(error.localizedDescription)
+            finishActiveCapture(with: .failure(error))
+            finishActiveDownload(with: .failure(error))
         }
     }
 
-    nonisolated func webView(
-        _ webView: WKWebView,
-        didFailProvisionalNavigation navigation: WKNavigation!,
-        withError error: Error
-    ) {
+    nonisolated func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         Task { @MainActor [weak self] in
-            self?.state = .failed(error.localizedDescription)
-            self?.finishActiveCapture(with: .failure(error))
-            self?.finishActiveDownload(with: .failure(error))
+            state = .failed(error.localizedDescription)
+            finishActiveCapture(with: .failure(error))
+            finishActiveDownload(with: .failure(error))
         }
     }
 
@@ -263,7 +268,7 @@ extension AppsTorrentBrowserSession: WKNavigationDelegate {
         didBecome download: WKDownload
     ) {
         Task { @MainActor [weak self] in
-            guard let self, self.activeDownload != nil else {
+            guard let self, activeDownload != nil else {
                 download.cancel()
                 return
             }
@@ -274,9 +279,9 @@ extension AppsTorrentBrowserSession: WKNavigationDelegate {
     nonisolated func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         Task { @MainActor [weak self] in
             guard let self else { return }
-            self.state = .processTerminated
-            self.finishActiveCapture(with: .failure(BrowserError.processTerminated))
-            self.finishActiveDownload(with: .failure(BrowserError.processTerminated))
+            state = .processTerminated
+            finishActiveCapture(with: .failure(BrowserError.processTerminated))
+            finishActiveDownload(with: .failure(BrowserError.processTerminated))
         }
     }
 }
@@ -289,31 +294,37 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
         completionHandler: @escaping (URL?) -> Void
     ) {
         Task { @MainActor [weak self] in
-            guard let self, let activeDownload = self.activeDownload else {
+            guard let self, let activeDownload else {
                 completionHandler(nil)
                 return
             }
 
-            let filename = suggestedFilename
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .isEmpty ? (activeDownload.url.lastPathComponent.isEmpty ? "Luma-Download" : activeDownload.url.lastPathComponent) : suggestedFilename
-            let destination = self.uniqueDestinationURL(
+            let trimmed = suggestedFilename.trimmingCharacters(in: .whitespacesAndNewlines)
+            let filename = trimmed.isEmpty
+                ? (activeDownload.url.lastPathComponent.isEmpty ? "Luma-Download" : activeDownload.url.lastPathComponent)
+                : trimmed
+
+            let destination = uniqueDestinationURL(
                 filename: filename,
                 directory: activeDownload.destinationDirectory
             )
-            self.activeDownloadDestination = destination
+            activeDownloadResponse = response
+            activeDownloadDestination = destination
             completionHandler(destination)
         }
     }
 
     nonisolated func downloadDidFinish(_ download: WKDownload) {
         Task { @MainActor [weak self] in
-            guard let self, self.activeDownload != nil else { return }
-            let destination = self.activeDownloadDestination ?? self.uniqueDestinationURL(
-                filename: self.activeDownload?.url.lastPathComponent.isEmpty == false ? self.activeDownload!.url.lastPathComponent : "Luma-Download",
-                directory: self.activeDownload!.destinationDirectory
-            )
-            self.finishActiveDownload(with: .success(destination))
+            guard let self, activeDownload != nil, activeDownloadDestination != nil else { return }
+            finishActiveDownload(with: .success(DownloadedArtifact(
+                originalURL: activeDownload!.url,
+                finalURL: activeDownloadResponse?.url ?? activeDownload!.url,
+                fileURL: activeDownloadDestination!,
+                filename: activeDownloadDestination!.lastPathComponent,
+                mimeType: activeDownloadResponse?.mimeType,
+                byteCount: Int64((try? activeDownloadDestination!.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+            )))
         }
     }
 
@@ -330,13 +341,10 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
 
     private func uniqueDestinationURL(filename: String, directory: URL) -> URL {
         let initialURL = directory.appendingPathComponent(filename)
-        guard FileManager.default.fileExists(atPath: initialURL.path) else {
-            return initialURL
-        }
+        guard FileManager.default.fileExists(atPath: initialURL.path) else { return initialURL }
 
         let base = initialURL.deletingPathExtension().lastPathComponent
         let ext = initialURL.pathExtension
-
         for index in 2...10_000 {
             let candidateName = ext.isEmpty ? "\(base) (\(index))" : "\(base) (\(index)).\(ext)"
             let candidate = directory.appendingPathComponent(candidateName)
@@ -344,7 +352,6 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
                 return candidate
             }
         }
-
         return directory.appendingPathComponent("Luma-\(UUID().uuidString).download")
     }
 }
