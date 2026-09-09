@@ -175,9 +175,6 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
     }
 
     private func extractISO(_ image: URL, to directory: URL) throws {
-        // A sandboxed app cannot use hdiutil attach: DiskImages needs the
-        // hdiejectd helper, which is unavailable to the app sandbox. Use the
-        // libarchive-backed macOS tar reader instead, so the ISO is never mounted.
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
         process.arguments = ["-xf", image.path, "-C", directory.path]
@@ -193,8 +190,7 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
                 data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
                 encoding: .utf8
             )?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            LumaLog.app.error(
+            LumaLog.updates.error(
                 "ISO extraction failed: \(message ?? "unknown tar error", privacy: .public)"
             )
             throw InspectionError.extractionFailed
