@@ -20,6 +20,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
     private let authenticationManager: AppsTorrentAuthenticationManager
     private let downloadDestinationStore: DownloadDestinationStore
     private let pendingUpdateStore: PendingUpdateStore
+    private let installationMonitor: ApplicationInstallationMonitor
     private var externalInstallationWatchTasks: [ApplicationIdentity: Task<Void, Never>] = [:]
 
     init(
@@ -32,7 +33,8 @@ final class ApplicationLibraryViewModel: ObservableObject {
         applicationInstaller: (any ApplicationInstalling)? = nil,
         authenticationManager: AppsTorrentAuthenticationManager? = nil,
         downloadDestinationStore: DownloadDestinationStore? = nil,
-        pendingUpdateStore: PendingUpdateStore? = nil
+        pendingUpdateStore: PendingUpdateStore? = nil,
+        installationMonitor: ApplicationInstallationMonitor = ApplicationInstallationMonitor()
     ) {
         self.scanner = scanner
         self.updateCoordinator = updateCoordinator
@@ -44,6 +46,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
         self.authenticationManager = authenticationManager ?? AppsTorrentAuthenticationManager()
         self.downloadDestinationStore = downloadDestinationStore ?? DownloadDestinationStore()
         self.pendingUpdateStore = pendingUpdateStore ?? PendingUpdateStore()
+        self.installationMonitor = installationMonitor
         self.appsTorrentConnection = UpdateSourceConnection(
             id: "appstorrent",
             name: "AppsTorrent",
@@ -190,7 +193,11 @@ final class ApplicationLibraryViewModel: ObservableObject {
         downloadStates[application.id] = .installing(preparedUpdate.version)
 
         do {
-            let result = try await applicationInstaller.install(preparedUpdate, replacing: application)
+            let fileAccess = pendingUpdateStore.beginFileAccess(for: application.id)
+            let installerUpdate = fileAccess.map(preparedUpdate.replacingArtifactURL(with:)) ?? preparedUpdate
+            defer { fileAccess?.stop() }
+
+            let result = try await applicationInstaller.install(installerUpdate, replacing: application)
             switch result {
             case .completed:
                 applications = await scanner.scan()
@@ -217,7 +224,9 @@ final class ApplicationLibraryViewModel: ObservableObject {
 
     func showDownloadedFile(for application: InstalledApplication) {
         guard case .readyToInstall(let preparedUpdate)? = downloadStates[application.id] else { return }
-        NSWorkspace.shared.activateFileViewerSelecting([preparedUpdate.artifactURL])
+        let fileAccess = pendingUpdateStore.beginFileAccess(for: application.id)
+        NSWorkspace.shared.activateFileViewerSelecting([fileAccess?.url ?? preparedUpdate.artifactURL])
+        fileAccess?.stop()
     }
 
     private func applyUpdateResults(_ results: [ApplicationIdentity: UpdateStatus]) {
@@ -237,8 +246,9 @@ final class ApplicationLibraryViewModel: ObservableObject {
             updateStates[application.id] = .updateAvailable(candidate)
             if let pending = pendingUpdateStore.pending(for: application.id),
                pending.version == candidate.version.rawValue,
-               FileManager.default.fileExists(atPath: pending.fileURL.path) {
-                downloadStates[application.id] = preparedUpdateState(from: pending, for: application)
+               let resolvedURL = pendingUpdateStore.resolvedFileURL(for: application.id),
+               FileManager.default.fileExists(atPath: resolvedURL.path) {
+                downloadStates[application.id] = preparedUpdateState(from: pending, fileURL: resolvedURL, for: application)
             } else {
                 if pendingUpdateStore.pending(for: application.id) != nil {
                     pendingUpdateStore.remove(for: application.id)
@@ -263,37 +273,39 @@ final class ApplicationLibraryViewModel: ObservableObject {
     }
 
     private func restorePendingUpdate(for application: InstalledApplication) {
-        guard let pending = pendingUpdateStore.pending(for: application.id) else {
+        guard let pending = pendingUpdateStore.pending(for: application.id),
+              let resolvedURL = pendingUpdateStore.resolvedFileURL(for: application.id) else {
             return
         }
 
-        guard FileManager.default.fileExists(atPath: pending.fileURL.path) else {
+        guard FileManager.default.fileExists(atPath: resolvedURL.path) else {
             pendingUpdateStore.remove(for: application.id)
             downloadStates[application.id] = nil
             return
         }
 
         let pendingVersion = SoftwareVersion(pending.version)
-        if let installedVersion = installedVersion(for: application),
+        if let installedVersion = BundleApplicationVersionProvider().installedVersion(for: application),
            VersionComparator().compare(installedVersion, pendingVersion) != .orderedAscending {
             pendingUpdateStore.remove(for: application.id)
             downloadStates[application.id] = nil
             return
         }
 
-        downloadStates[application.id] = preparedUpdateState(from: pending, for: application)
+        downloadStates[application.id] = preparedUpdateState(from: pending, fileURL: resolvedURL, for: application)
     }
 
     private func preparedUpdateState(
         from pending: PendingExternalUpdate,
+        fileURL: URL,
         for application: InstalledApplication
     ) -> ApplicationDownloadState {
         .readyToInstall(
             PreparedUpdate(
                 application: application.id,
                 version: SoftwareVersion(pending.version),
-                artifactURL: pending.fileURL,
-                payload: .externalInstaller(pending.fileURL)
+                artifactURL: fileURL,
+                payload: .externalInstaller(fileURL)
             )
         )
     }
@@ -306,44 +318,28 @@ final class ApplicationLibraryViewModel: ObservableObject {
 
         let applicationID = application.id
         externalInstallationWatchTasks[applicationID] = Task { [weak self] in
-            for _ in 0..<300 {
-                if Task.isCancelled { return }
-                try? await Task.sleep(for: .seconds(2))
-                if Task.isCancelled { return }
+            guard let self else { return }
 
-                guard let self else { return }
-                guard let installedVersion = self.installedVersion(for: application),
-                      VersionComparator().compare(installedVersion, expectedVersion) != .orderedAscending else {
-                    continue
-                }
-
-                self.applications = await self.scanner.scan()
-                self.pendingUpdateStore.remove(for: applicationID)
-                self.updateStates[applicationID] = .upToDate
-                self.downloadStates[applicationID] = .installed(expectedVersion)
+            let completed = await installationMonitor.waitForInstallation(
+                of: application,
+                expectedVersion: expectedVersion
+            )
+            guard !Task.isCancelled, completed else {
                 self.externalInstallationWatchTasks[applicationID] = nil
                 return
             }
 
-            await MainActor.run {
-                self?.externalInstallationWatchTasks[applicationID] = nil
-            }
+            self.applications = await self.scanner.scan()
+            self.pendingUpdateStore.remove(for: applicationID)
+            self.updateStates[applicationID] = .upToDate
+            self.downloadStates[applicationID] = .installed(expectedVersion)
+            self.externalInstallationWatchTasks[applicationID] = nil
         }
     }
 
     private func cancelExternalInstallationWatch(for applicationID: ApplicationIdentity) {
         externalInstallationWatchTasks[applicationID]?.cancel()
         externalInstallationWatchTasks[applicationID] = nil
-    }
-
-    private func installedVersion(for application: InstalledApplication) -> SoftwareVersion? {
-        guard let bundle = Bundle(url: application.bundleURL),
-              bundle.bundleIdentifier == application.id.bundleIdentifier,
-              let value = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
-              !value.isEmpty else {
-            return nil
-        }
-        return SoftwareVersion(value)
     }
 
     private func chooseDownloadDirectoryForFirstUse() async -> URL? {
