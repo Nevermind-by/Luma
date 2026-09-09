@@ -175,8 +175,14 @@ struct ApplicationRowView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
 
+                Text("The installer controls how the current version is replaced. Luma will not remove the existing app automatically.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+                    .frame(maxWidth: 320, alignment: .trailing)
+
                 HStack(spacing: 6) {
-                    Button("Install Update") {
+                    Button("Open Installer") {
                         onInstall()
                     }
                     .buttonStyle(.borderedProminent)
@@ -204,7 +210,7 @@ struct ApplicationRowView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.tint)
 
-                Text("Complete the installer. Luma will detect the new version automatically.")
+                Text("Complete the installer. It may ask you to remove the current version before continuing. Luma will detect the new version automatically.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.trailing)
