@@ -13,6 +13,7 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
     enum InspectionError: LocalizedError, Equatable {
         case unsupportedArtifact
         case extractionFailed
+        case invalidDiskImage(diagnostic: String)
         case applicationNotFound
         case bundleIdentifierMismatch(expected: String, actual: String)
         case versionMismatch(expected: String, actual: String)
@@ -23,6 +24,8 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
                 return "Luma downloaded an unsupported update format."
             case .extractionFailed:
                 return "Luma could not extract the downloaded update."
+            case .invalidDiskImage(let diagnostic):
+                return "The downloaded disk image is not readable: \(diagnostic)"
             case .applicationNotFound:
                 return "No application bundle was found inside the downloaded update."
             case .bundleIdentifierMismatch(let expected, let actual):
@@ -175,6 +178,14 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
     }
 
     private func extractISO(_ image: URL, to directory: URL) throws {
+        let probe = diskImageDiagnostic(for: image)
+        if !probe.isReadable {
+            LumaLog.updates.error(
+                "Downloaded ISO is not readable. Diagnostic: \(probe.diagnostic, privacy: .public)"
+            )
+            throw InspectionError.invalidDiskImage(diagnostic: probe.diagnostic)
+        }
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
         process.arguments = ["-xf", image.path, "-C", directory.path]
@@ -190,11 +201,52 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
                 data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
                 encoding: .utf8
             )?.trimmingCharacters(in: .whitespacesAndNewlines)
+
             LumaLog.updates.error(
-                "ISO extraction failed: \(message ?? "unknown tar error", privacy: .public)"
+                "ISO extraction failed. hdiutil: \(probe.diagnostic, privacy: .public); tar: \(message ?? "unknown tar error", privacy: .public)"
             )
             throw InspectionError.extractionFailed
         }
+    }
+
+    private struct DiskImageProbe {
+        let isReadable: Bool
+        let diagnostic: String
+    }
+
+    private func diskImageDiagnostic(for url: URL) -> DiskImageProbe {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/hdiutil")
+        process.arguments = ["imageinfo", "-plist", url.path]
+
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return DiskImageProbe(isReadable: false, diagnostic: error.localizedDescription)
+        }
+
+        let stderr = String(
+            data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
+            encoding: .utf8
+        )?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let stdout = String(
+            data: outputPipe.fileHandleForReading.readDataToEndOfFile(),
+            encoding: .utf8
+        )?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if process.terminationStatus == 0 {
+            return DiskImageProbe(isReadable: true, diagnostic: "hdiutil imageinfo OK")
+        }
+
+        let diagnostic = stderr?.isEmpty == false ? stderr! : (stdout?.isEmpty == false ? stdout! : "hdiutil imageinfo failed")
+        return DiskImageProbe(isReadable: false, diagnostic: diagnostic)
     }
 
     private func extractDMG(_ image: URL, to directory: URL) throws {
