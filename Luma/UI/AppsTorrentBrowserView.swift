@@ -109,6 +109,10 @@ struct AppsTorrentBrowserView: View {
             Label(loadedURL.host ?? "Ready", systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.secondary)
 
+        case .downloading(let downloadURL):
+            Label(downloadURL.host ?? "Downloading…", systemImage: "arrow.down.circle")
+                .foregroundStyle(.secondary)
+
         case .failed(let message):
             Label("Navigation failed", systemImage: "exclamationmark.triangle.fill")
                 .foregroundStyle(.orange)
