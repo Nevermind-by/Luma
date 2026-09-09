@@ -23,6 +23,8 @@ jobs:
             -project Luma.xcodeproj \
             -scheme Luma \
             -destination 'platform=macOS' \
+            MARKETING_VERSION=1.0.0 \
+            CURRENT_PROJECT_VERSION=1 \
             build
 
       - name: Test
@@ -31,6 +33,8 @@ jobs:
             -project Luma.xcodeproj \
             -scheme Luma \
             -destination 'platform=macOS' \
+            MARKETING_VERSION=1.0.0 \
+            CURRENT_PROJECT_VERSION=1 \
             test
 
   package-release:
@@ -50,29 +54,31 @@ jobs:
             -scheme Luma \
             -configuration Release \
             -destination 'generic/platform=macOS' \
-            -archivePath build/Luma.xcarchive \
+            MARKETING_VERSION=1.0.0 \
+            CURRENT_PROJECT_VERSION=1 \
             CODE_SIGNING_ALLOWED=NO \
-            archive
+            archive \
+            -archivePath build/Luma.xcarchive
 
       - name: Package ZIP
         run: |
           mkdir -p build/package
           ditto -c -k --sequesterRsrc --keepParent \
             build/Luma.xcarchive/Products/Applications/Luma.app \
-            build/package/Luma-macOS-unsigned.zip
+            build/package/Luma-macOS-1.0.0-unsigned.zip
 
       - name: Package DMG
         run: |
           hdiutil create \
-            -volname Luma \
+            -volname 'Luma 1.0.0' \
             -srcfolder build/Luma.xcarchive/Products/Applications \
             -ov \
             -format UDZO \
-            build/package/Luma-macOS-unsigned.dmg
+            build/package/Luma-macOS-1.0.0-unsigned.dmg
 
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Luma-macOS-unsigned
+          name: Luma-macOS-1.0.0-unsigned
           path: build/package/
           if-no-files-found: error
