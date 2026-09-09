@@ -155,10 +155,11 @@ final class ApplicationLibraryViewModel: ObservableObject {
                 }
             }
 
-            let preparedUpdate = try await artifactInspector.inspect(
-                artifact: artifact,
-                expectedApplication: application.id,
-                expectedVersion: candidate.version
+            let preparedUpdate = PreparedUpdate(
+                application: application.id,
+                version: candidate.version,
+                artifactURL: artifact.fileURL,
+                payload: .externalInstaller(artifact.fileURL)
             )
             downloadStates[application.id] = .readyToInstall(preparedUpdate)
         } catch {
@@ -193,7 +194,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
 
     func showDownloadedFile(for application: InstalledApplication) {
         guard case .readyToInstall(let preparedUpdate)? = downloadStates[application.id] else { return }
-        NSWorkspace.shared.activateFileViewerSelecting([preparedUpdate.installerURL])
+        NSWorkspace.shared.activateFileViewerSelecting([preparedUpdate.artifactURL])
     }
 
     private func applyUpdateResults(_ results: [ApplicationIdentity: UpdateStatus]) {
