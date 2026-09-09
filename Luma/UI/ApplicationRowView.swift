@@ -160,19 +160,16 @@ struct ApplicationRowView: View {
 
         case .readyToInstall(let preparedUpdate):
             VStack(alignment: .trailing, spacing: 5) {
-                Label(
-                    preparedUpdate.isApplicationBundle ? "Ready to Install" : "Installer Ready",
-                    systemImage: "checkmark.circle.fill"
-                )
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.tint)
+                Label("Ready to Open", systemImage: "checkmark.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.tint)
 
                 Text(preparedUpdate.version.rawValue)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 6) {
-                    Button(preparedUpdate.isApplicationBundle ? "Install Update" : "Open Installer") {
+                    Button("Install Update") {
                         onInstall()
                     }
                     .buttonStyle(.borderedProminent)
@@ -189,7 +186,7 @@ struct ApplicationRowView: View {
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Installing \(version.rawValue)…")
+                Text("Opening \(version.rawValue)…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
