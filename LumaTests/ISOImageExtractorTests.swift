@@ -56,7 +56,7 @@ struct ISOImageExtractorTests {
         for record in [
             directoryRecord(name: Data([0]), extent: rootExtent, dataLength: blockSize, isDirectory: true),
             directoryRecord(name: Data([1]), extent: rootExtent, dataLength: blockSize, isDirectory: true),
-            directoryRecord(name: fileName, extent: fileExtent, dataLength: UInt32(dmgBytes.count), isDirectory: false)
+            directoryRecord(name: fileName, extent: fileExtent, dataLength: dmgBytes.count, isDirectory: false)
         ] {
             directory.replaceSubrange(offset..<(offset + record.count), with: record)
             offset += record.count
