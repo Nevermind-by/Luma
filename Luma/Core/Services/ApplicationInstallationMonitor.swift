@@ -22,7 +22,7 @@ struct ApplicationInstallationMonitor: Sendable {
     private let pollInterval: Duration
     private let maxAttempts: Int
 
-    init(
+    nonisolated init(
         versionProvider: any InstalledApplicationVersionProviding = BundleApplicationVersionProvider(),
         pollInterval: Duration = .seconds(2),
         maxAttempts: Int = 300
