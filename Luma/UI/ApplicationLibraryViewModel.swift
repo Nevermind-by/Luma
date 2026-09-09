@@ -231,6 +231,38 @@ final class ApplicationLibraryViewModel: ObservableObject {
         }
     }
 
+    func reopenInstaller(for application: InstalledApplication) async {
+        guard case .awaitingUserInstallation(let version)? = downloadStates[application.id],
+              let pending = pendingUpdateStore.pending(for: application.id),
+              let resolvedURL = pendingUpdateStore.resolvedFileURL(for: application.id),
+              FileManager.default.fileExists(atPath: resolvedURL.path) else {
+            return
+        }
+
+        let preparedUpdate = PreparedUpdate(
+            application: application.id,
+            version: version,
+            artifactURL: resolvedURL,
+            payload: .externalInstaller(resolvedURL)
+        )
+
+        do {
+            let fileAccess = pendingUpdateStore.beginFileAccess(for: application.id)
+            let installerUpdate = fileAccess.map { preparedUpdate.replacingArtifactURL(with: $0.url) } ?? preparedUpdate
+            defer { fileAccess?.stop() }
+
+            downloadStates[application.id] = .installing(version)
+            let result = try await applicationInstaller.install(installerUpdate, replacing: application)
+            switch result {
+            case .completed, .userActionRequired:
+                downloadStates[application.id] = .awaitingUserInstallation(version)
+                startExternalInstallationWatch(for: application, expectedVersion: version)
+            }
+        } catch {
+            downloadStates[application.id] = .failed(error.localizedDescription)
+        }
+    }
+
     func chooseDownloadDirectoryForFutureUpdates() async {
         guard let selectedDirectory = await chooseDownloadDirectory() else { return }
         downloadDestinationStore.save(directory: selectedDirectory)
