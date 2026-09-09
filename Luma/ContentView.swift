@@ -242,6 +242,9 @@ struct ContentView: View {
                         onInstall: {
                             Task { await viewModel.installUpdate(for: application) }
                         },
+                        onReopenInstaller: {
+                            Task { await viewModel.reopenInstaller(for: application) }
+                        },
                         onShowDownloadedFile: {
                             viewModel.showDownloadedFile(for: application)
                         }
