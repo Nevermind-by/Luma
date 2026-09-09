@@ -171,10 +171,15 @@ final class ApplicationLibraryViewModel: ObservableObject {
         downloadStates[application.id] = .installing(preparedUpdate.version)
 
         do {
-            try await applicationInstaller.install(preparedUpdate, replacing: application)
-            applications = await scanner.scan()
-            updateStates[application.id] = .upToDate
-            downloadStates[application.id] = .installed(preparedUpdate.version)
+            let result = try await applicationInstaller.install(preparedUpdate, replacing: application)
+            switch result {
+            case .completed:
+                applications = await scanner.scan()
+                updateStates[application.id] = .upToDate
+                downloadStates[application.id] = .installed(preparedUpdate.version)
+            case .userActionRequired:
+                downloadStates[application.id] = .awaitingUserInstallation(preparedUpdate.version)
+            }
         } catch {
             downloadStates[application.id] = .failed(error.localizedDescription)
         }
@@ -188,7 +193,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
 
     func showDownloadedFile(for application: InstalledApplication) {
         guard case .readyToInstall(let preparedUpdate)? = downloadStates[application.id] else { return }
-        NSWorkspace.shared.activateFileViewerSelecting([preparedUpdate.artifactURL])
+        NSWorkspace.shared.activateFileViewerSelecting([preparedUpdate.installerURL])
     }
 
     private func applyUpdateResults(_ results: [ApplicationIdentity: UpdateStatus]) {
