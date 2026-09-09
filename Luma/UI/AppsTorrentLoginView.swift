@@ -85,6 +85,8 @@ struct AppsTorrentLoginView: View {
             return "Loading \(url.host ?? "AppsTorrent")…"
         case .ready:
             return "Browser ready"
+        case .downloading(let url):
+            return "Downloading \(url.lastPathComponent)…"
         case .failed(let message):
             return message
         case .processTerminated:
@@ -96,6 +98,8 @@ struct AppsTorrentLoginView: View {
         switch session.state {
         case .ready:
             return "checkmark.circle"
+        case .downloading:
+            return "arrow.down.circle"
         case .failed, .processTerminated:
             return "exclamationmark.triangle"
         default:
