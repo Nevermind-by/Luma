@@ -15,6 +15,7 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
         case unsupportedArtifactType(ArtifactType)
         case extractionFailed
         case applicationNotFound
+        case installerNotFound
         case bundleIdentifierMismatch(expected: String, actual: String)
         case versionMismatch(expected: String, actual: String)
 
@@ -28,6 +29,8 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
                 return "Luma could not extract the downloaded update."
             case .applicationNotFound:
                 return "No application bundle was found inside the downloaded update."
+            case .installerNotFound:
+                return "No installer disk image was found inside the downloaded ISO."
             case .bundleIdentifierMismatch(let expected, let actual):
                 return "The downloaded application is not the expected app (bundle ID \(actual), expected \(expected))."
             case .versionMismatch(let expected, let actual):
@@ -37,9 +40,14 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
     }
 
     private let classifier: any ArtifactClassifying
+    private let isoExtractor: any ISOImageExtracting
 
-    init(classifier: any ArtifactClassifying = ArtifactClassifier()) {
+    init(
+        classifier: any ArtifactClassifying = ArtifactClassifier(),
+        isoExtractor: any ISOImageExtracting = ISOImageExtractor()
+    ) {
         self.classifier = classifier
+        self.isoExtractor = isoExtractor
     }
 
     func inspect(
@@ -52,14 +60,73 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
             "Downloaded artifact: filename=\(artifact.filename, privacy: .public), type=\(artifactType.rawValue, privacy: .public), mime=\(artifact.mimeType ?? "unknown", privacy: .public), bytes=\(artifact.byteCount, privacy: .public), finalURL=\(artifact.finalURL.absoluteString, privacy: .public)"
         )
 
-        if artifactType == .html || (artifactType == .unknown && artifact.byteCount == 0) {
+        if artifactType == .html || artifactType == .unknown {
             throw InspectionError.invalidDownloadedResponse
         }
 
-        let stagingDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Luma-Update-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: stagingDirectory, withIntermediateDirectories: true)
+        switch artifactType {
+        case .zip:
+            return try inspectZip(
+                artifact: artifact,
+                expectedApplication: expectedApplication,
+                expectedVersion: expectedVersion
+            )
+        case .app:
+            return try prepareApplication(
+                sourceURL: artifact.fileURL,
+                artifactURL: artifact.fileURL,
+                expectedApplication: expectedApplication,
+                expectedVersion: expectedVersion
+            )
+        case .dmg:
+            return PreparedUpdate(
+                application: expectedApplication,
+                version: expectedVersion,
+                artifactURL: artifact.fileURL,
+                payload: .diskImage(artifact.fileURL)
+            )
+        case .iso:
+            let destinationDirectory = artifact.fileURL.deletingLastPathComponent()
+            do {
+                let dmgURL = try isoExtractor.extractFirstDiskImage(
+                    from: artifact.fileURL,
+                    to: destinationDirectory
+                )
+                LumaLog.updates.info(
+                    "Extracted installer disk image from ISO: \(dmgURL.path, privacy: .public)"
+                )
+                return PreparedUpdate(
+                    application: expectedApplication,
+                    version: expectedVersion,
+                    artifactURL: artifact.fileURL,
+                    payload: .diskImage(dmgURL)
+                )
+            } catch let error as ISOImageExtractor.ExtractionError where error == .diskImageNotFound {
+                throw InspectionError.installerNotFound
+            } catch {
+                LumaLog.updates.error(
+                    "ISO extraction failed: \(error.localizedDescription, privacy: .public)"
+                )
+                throw InspectionError.extractionFailed
+            }
+        case .pkg:
+            return PreparedUpdate(
+                application: expectedApplication,
+                version: expectedVersion,
+                artifactURL: artifact.fileURL,
+                payload: .package(artifact.fileURL)
+            )
+        case .html, .unknown:
+            throw InspectionError.invalidDownloadedResponse
+        }
+    }
 
+    private func inspectZip(
+        artifact: DownloadedArtifact,
+        expectedApplication: ApplicationIdentity,
+        expectedVersion: SoftwareVersion
+    ) throws -> PreparedUpdate {
+        let stagingDirectory = try makeStagingDirectory()
         var keepStagingDirectory = false
         defer {
             if !keepStagingDirectory {
@@ -67,21 +134,73 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
             }
         }
 
-        switch artifactType {
-        case .zip:
-            try extractZip(artifact.fileURL, to: stagingDirectory)
-        case .app:
-            let destination = stagingDirectory.appendingPathComponent(artifact.fileURL.lastPathComponent)
-            try FileManager.default.copyItem(at: artifact.fileURL, to: destination)
-        case .pkg, .dmg, .iso, .html, .unknown:
-            throw InspectionError.unsupportedArtifactType(artifactType)
-        }
-
+        try extractZip(artifact.fileURL, to: stagingDirectory)
         guard let applicationURL = findApplication(in: stagingDirectory) else {
             throw InspectionError.applicationNotFound
         }
 
-        guard let bundle = Bundle(url: applicationURL),
+        try verifyApplication(
+            at: applicationURL,
+            expectedApplication: expectedApplication,
+            expectedVersion: expectedVersion
+        )
+
+        keepStagingDirectory = true
+        return PreparedUpdate(
+            application: expectedApplication,
+            version: expectedVersion,
+            artifactURL: artifact.fileURL,
+            payload: .application(applicationURL),
+            bundleIdentifier: expectedApplication.bundleIdentifier,
+            stagingDirectoryURL: stagingDirectory
+        )
+    }
+
+    private func prepareApplication(
+        sourceURL: URL,
+        artifactURL: URL,
+        expectedApplication: ApplicationIdentity,
+        expectedVersion: SoftwareVersion
+    ) throws -> PreparedUpdate {
+        try verifyApplication(
+            at: sourceURL,
+            expectedApplication: expectedApplication,
+            expectedVersion: expectedVersion
+        )
+
+        return PreparedUpdate(
+            application: expectedApplication,
+            version: expectedVersion,
+            artifactURL: artifactURL,
+            payload: .application(sourceURL),
+            bundleIdentifier: expectedApplication.bundleIdentifier
+        )
+    }
+
+    private func makeStagingDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Luma-Update-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    private func extractZip(_ archive: URL, to directory: URL) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = ["-x", "-k", archive.path, directory.path]
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw InspectionError.extractionFailed
+        }
+    }
+
+    private func verifyApplication(
+        at url: URL,
+        expectedApplication: ApplicationIdentity,
+        expectedVersion: SoftwareVersion
+    ) throws {
+        guard let bundle = Bundle(url: url),
               let actualIdentifier = bundle.bundleIdentifier else {
             throw InspectionError.bundleIdentifierMismatch(
                 expected: expectedApplication.bundleIdentifier,
@@ -105,27 +224,6 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
                 expected: expectedVersion.rawValue,
                 actual: actualVersionString.isEmpty ? "unknown" : actualVersionString
             )
-        }
-
-        keepStagingDirectory = true
-        return PreparedUpdate(
-            application: expectedApplication,
-            version: expectedVersion,
-            artifactURL: artifact.fileURL,
-            applicationURL: applicationURL,
-            bundleIdentifier: actualIdentifier,
-            stagingDirectoryURL: stagingDirectory
-        )
-    }
-
-    private func extractZip(_ archive: URL, to directory: URL) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = ["-x", "-k", archive.path, directory.path]
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            throw InspectionError.extractionFailed
         }
     }
 
