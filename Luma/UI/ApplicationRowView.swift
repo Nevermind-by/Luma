@@ -45,7 +45,7 @@ struct ApplicationRowView: View {
             Spacer(minLength: 12)
 
             updateStatusView
-                .frame(minWidth: 210, alignment: .trailing)
+                .frame(minWidth: 280, alignment: .trailing)
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle())
@@ -160,14 +160,19 @@ struct ApplicationRowView: View {
 
         case .readyToInstall(let preparedUpdate):
             VStack(alignment: .trailing, spacing: 5) {
-                Label("Ready to Install", systemImage: "checkmark.circle.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.tint)
+                Label(
+                    preparedUpdate.isApplicationBundle ? "Ready to Install" : "Installer Ready",
+                    systemImage: "checkmark.circle.fill"
+                )
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.tint)
+
                 Text(preparedUpdate.version.rawValue)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+
                 HStack(spacing: 6) {
-                    Button("Install Update") {
+                    Button(preparedUpdate.isApplicationBundle ? "Install Update" : "Open Installer") {
                         onInstall()
                     }
                     .buttonStyle(.borderedProminent)
@@ -189,6 +194,28 @@ struct ApplicationRowView: View {
                     .foregroundStyle(.secondary)
             }
 
+        case .awaitingUserInstallation(let version):
+            VStack(alignment: .trailing, spacing: 5) {
+                Label("Finish in macOS", systemImage: "macwindow.badge.plus")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.tint)
+                Text("Complete the installer, then check again.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+                HStack(spacing: 6) {
+                    Button("Check Again") {
+                        onCheck()
+                    }
+                    .controlSize(.small)
+                    .disabled(!isUpdateCheckEnabled)
+
+                    Text(version.rawValue)
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+            }
+
         case .installed(let version):
             Label("Installed \(version.rawValue)", systemImage: "checkmark.circle.fill")
                 .font(.subheadline.weight(.semibold))
@@ -199,7 +226,7 @@ struct ApplicationRowView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.trailing)
-                .frame(maxWidth: 280, alignment: .trailing)
+                .frame(maxWidth: 320, alignment: .trailing)
         }
     }
 
