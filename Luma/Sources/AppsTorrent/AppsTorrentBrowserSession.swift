@@ -344,7 +344,7 @@ extension AppsTorrentBrowserSession: WKNavigationDelegate {
     ) {
         Task { @MainActor [weak self] in
             guard let self, self.activeDownload != nil else {
-                download.cancel()
+                await download.cancel()
                 return
             }
             self.downloadDidBecomeActive = true
