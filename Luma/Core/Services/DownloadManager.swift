@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 nonisolated protocol DownloadManaging: Sendable {
     func download(
@@ -6,21 +7,35 @@ nonisolated protocol DownloadManaging: Sendable {
         to directory: URL,
         cookies: [HTTPCookie],
         progress: @escaping @Sendable (DownloadProgress) -> Void
-    ) async throws -> URL
+    ) async throws -> DownloadedArtifact
 }
 
 final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManaging, @unchecked Sendable {
-    enum DownloadError: Error, Equatable {
+    enum DownloadError: Error, Equatable, LocalizedError {
         case unsupportedDownloadOption
         case invalidDestination
-        case invalidResponse
+        case invalidResponse(statusCode: Int)
         case downloadFailed
+
+        var errorDescription: String? {
+            switch self {
+            case .unsupportedDownloadOption:
+                return "The selected update does not provide a direct download."
+            case .invalidDestination:
+                return "The selected download folder is not available."
+            case .invalidResponse(let statusCode):
+                return "The download server returned HTTP status \(statusCode)."
+            case .downloadFailed:
+                return "The update download failed."
+            }
+        }
     }
 
     private struct Job {
+        let originalURL: URL
         let requestedFilename: String
         let destinationDirectory: URL
-        let continuation: CheckedContinuation<URL, Error>
+        let continuation: CheckedContinuation<DownloadedArtifact, Error>
         let progress: @Sendable (DownloadProgress) -> Void
     }
 
@@ -43,7 +58,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         to directory: URL,
         cookies: [HTTPCookie] = [],
         progress: @escaping @Sendable (DownloadProgress) -> Void
-    ) async throws -> URL {
+    ) async throws -> DownloadedArtifact {
         guard option.kind == .direct else {
             throw DownloadError.unsupportedDownloadOption
         }
@@ -57,24 +72,27 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         let requestedFilename = sanitizedFilename(from: option.url)
         var request = URLRequest(url: option.url)
         request.setValue("https://appstorrent.ru/", forHTTPHeaderField: "Referer")
-        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
+        request.setValue(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15",
+            forHTTPHeaderField: "User-Agent"
+        )
+        request.setValue("application/octet-stream,*/*;q=0.8", forHTTPHeaderField: "Accept")
         if !cookies.isEmpty {
             let fields = HTTPCookie.requestHeaderFields(with: cookies)
             request.setValue(fields["Cookie"], forHTTPHeaderField: "Cookie")
         }
 
         let task = session.downloadTask(with: request)
-
-        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<DownloadedArtifact, Error>) in
             lock.lock()
             jobs[task.taskIdentifier] = Job(
+                originalURL: option.url,
                 requestedFilename: requestedFilename,
                 destinationDirectory: directory,
                 continuation: continuation,
                 progress: progress
             )
             lock.unlock()
-
             task.resume()
         }
     }
@@ -94,7 +112,6 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
 
         let base = initialURL.deletingPathExtension().lastPathComponent
         let ext = initialURL.pathExtension
-
         for index in 2...10_000 {
             let candidateName = ext.isEmpty ? "\(base) (\(index))" : "\(base) (\(index)).\(ext)"
             let candidate = directory.appendingPathComponent(candidateName)
@@ -107,13 +124,10 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
     }
 
     private func preferredFilename(for response: HTTPURLResponse, requestedFilename: String) -> String {
-        let suggested = response.suggestedFilename?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
+        let suggested = response.suggestedFilename?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let suggested, !suggested.isEmpty else {
             return requestedFilename
         }
-
         return suggested
     }
 
@@ -127,10 +141,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         let activeJob = job(for: downloadTask.taskIdentifier)
         let total = totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : nil
         activeJob?.progress(
-            DownloadProgress(
-                bytesWritten: totalBytesWritten,
-                totalBytes: total
-            )
+            DownloadProgress(bytesWritten: totalBytesWritten, totalBytes: total)
         )
     }
 
@@ -139,43 +150,48 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        guard let activeJob = job(for: downloadTask.taskIdentifier) else {
+        guard let activeJob = job(for: downloadTask.taskIdentifier) else { return }
+
+        guard let response = downloadTask.response as? HTTPURLResponse else {
+            let completedJob = removeJob(for: downloadTask.taskIdentifier)
+            completedJob?.continuation.resume(throwing: DownloadError.invalidResponse(statusCode: -1))
             return
         }
 
-        guard let response = downloadTask.response as? HTTPURLResponse,
-              (200..<300).contains(response.statusCode) else {
-            _ = removeJob(for: downloadTask.taskIdentifier)
-            activeJob.continuation.resume(throwing: DownloadError.invalidResponse)
+        guard (200..<300).contains(response.statusCode) else {
+            let completedJob = removeJob(for: downloadTask.taskIdentifier)
+            completedJob?.continuation.resume(throwing: DownloadError.invalidResponse(statusCode: response.statusCode))
             return
         }
 
-        guard let completedJob = removeJob(for: downloadTask.taskIdentifier) else {
-            return
-        }
+        guard let completedJob = removeJob(for: downloadTask.taskIdentifier) else { return }
 
         do {
-            let filename = preferredFilename(
-                for: response,
-                requestedFilename: completedJob.requestedFilename
-            )
+            let filename = preferredFilename(for: response, requestedFilename: completedJob.requestedFilename)
             let destinationURL = uniqueDestinationURL(
                 for: filename,
                 in: completedJob.destinationDirectory
             )
 
-            if FileManager.default.fileExists(atPath: destinationURL.path) {
-                try FileManager.default.removeItem(at: destinationURL)
-            }
-
             try FileManager.default.moveItem(at: location, to: destinationURL)
-            completedJob.progress(
-                DownloadProgress(
-                    bytesWritten: 1,
-                    totalBytes: 1
-                )
+            let resourceValues = try? destinationURL.resourceValues(forKeys: [.fileSizeKey])
+            let byteCount = Int64(resourceValues?.fileSize ?? 0)
+            let finalURL = response.url ?? downloadTask.currentRequest?.url ?? completedJob.originalURL
+
+            LumaLog.appsTorrent.info(
+                "Downloaded artifact: status=\(response.statusCode), mime=\(response.mimeType ?? "unknown", privacy: .public), filename=\(filename, privacy: .public), bytes=\(byteCount, privacy: .public), finalURL=\(finalURL.absoluteString, privacy: .public)"
             )
-            completedJob.continuation.resume(returning: destinationURL)
+
+            let artifact = DownloadedArtifact(
+                originalURL: completedJob.originalURL,
+                finalURL: finalURL,
+                fileURL: destinationURL,
+                filename: filename,
+                mimeType: response.mimeType,
+                byteCount: byteCount
+            )
+            completedJob.progress(DownloadProgress(bytesWritten: byteCount, totalBytes: byteCount))
+            completedJob.continuation.resume(returning: artifact)
         } catch {
             completedJob.continuation.resume(throwing: error)
         }
@@ -186,14 +202,11 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         task: URLSessionTask,
         didCompleteWithError error: Error?
     ) {
-        guard let error else {
-            return
-        }
-
-        guard let job = removeJob(for: task.taskIdentifier) else {
-            return
-        }
-
+        guard let error else { return }
+        guard let job = removeJob(for: task.taskIdentifier) else { return }
+        LumaLog.appsTorrent.error(
+            "Download failed: \(error.localizedDescription, privacy: .public)"
+        )
         job.continuation.resume(throwing: error)
     }
 
