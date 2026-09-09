@@ -5,6 +5,7 @@ nonisolated enum ApplicationDownloadState: Equatable, Sendable {
     case downloading(DownloadProgress)
     case readyToInstall(PreparedUpdate)
     case installing(SoftwareVersion)
+    case awaitingUserInstallation(SoftwareVersion)
     case installed(SoftwareVersion)
     case failed(String)
 }
