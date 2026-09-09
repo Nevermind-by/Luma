@@ -54,4 +54,29 @@ struct PendingUpdateStoreTests {
         #expect(store.pending(for: firstApplication)?.version == "1.0.0")
         #expect(store.pending(for: secondApplication)?.version == "2.0.0")
     }
+
+    @Test
+    func persistsThatExternalInstallerWasOpened() {
+        let suiteName = "LumaTests.PendingUpdateStore.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = PendingUpdateStore(defaults: defaults)
+        let application = ApplicationIdentity(bundleIdentifier: "com.example.fixture")
+
+        store.save(
+            PendingExternalUpdate(
+                bundleIdentifier: application.bundleIdentifier,
+                version: "2.0.0",
+                fileURL: URL(fileURLWithPath: "/tmp/Fixture.dmg")
+            )
+        )
+
+        #expect(store.pending(for: application)?.installerOpened == false)
+
+        store.markInstallerOpened(for: application)
+
+        #expect(store.pending(for: application)?.installerOpened == true)
+        #expect(store.pending(for: application)?.version == "2.0.0")
+    }
 }
