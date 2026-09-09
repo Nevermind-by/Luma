@@ -4,6 +4,34 @@ nonisolated struct PendingExternalUpdate: Codable, Equatable, Sendable {
     let bundleIdentifier: String
     let version: String
     let fileURL: URL
+    let fileBookmarkData: Data?
+
+    init(
+        bundleIdentifier: String,
+        version: String,
+        fileURL: URL,
+        fileBookmarkData: Data? = nil
+    ) {
+        self.bundleIdentifier = bundleIdentifier
+        self.version = version
+        self.fileURL = fileURL
+        self.fileBookmarkData = fileBookmarkData
+    }
+}
+
+nonisolated struct PendingExternalFileAccess {
+    let url: URL
+    private let startedSecurityScope: Bool
+
+    init(url: URL, startedSecurityScope: Bool) {
+        self.url = url
+        self.startedSecurityScope = startedSecurityScope
+    }
+
+    func stop() {
+        guard startedSecurityScope else { return }
+        url.stopAccessingSecurityScopedResource()
+    }
 }
 
 struct PendingUpdateStore {
@@ -18,9 +46,71 @@ struct PendingUpdateStore {
         all()[application.bundleIdentifier]
     }
 
+    func resolvedFileURL(for application: ApplicationIdentity) -> URL? {
+        guard let pending = pending(for: application) else { return nil }
+        guard let bookmarkData = pending.fileBookmarkData else {
+            return pending.fileURL
+        }
+
+        var isStale = false
+        guard let resolvedURL = try? URL(
+            resolvingBookmarkData: bookmarkData,
+            options: [.withSecurityScope, .withoutUI],
+            relativeTo: nil,
+            bookmarkDataIsStale: &isStale
+        ) else {
+            return pending.fileURL
+        }
+
+        if isStale {
+            save(
+                PendingExternalUpdate(
+                    bundleIdentifier: pending.bundleIdentifier,
+                    version: pending.version,
+                    fileURL: resolvedURL,
+                    fileBookmarkData: bookmarkData
+                )
+            )
+        }
+
+        return resolvedURL
+    }
+
+    func beginFileAccess(for application: ApplicationIdentity) -> PendingExternalFileAccess? {
+        guard let pending = pending(for: application),
+              let resolvedURL = resolvedFileURL(for: application) else {
+            return nil
+        }
+
+        let startedSecurityScope: Bool
+        if pending.fileBookmarkData != nil {
+            startedSecurityScope = resolvedURL.startAccessingSecurityScopedResource()
+        } else {
+            startedSecurityScope = false
+        }
+
+        return PendingExternalFileAccess(
+            url: resolvedURL,
+            startedSecurityScope: startedSecurityScope
+        )
+    }
+
     func save(_ update: PendingExternalUpdate) {
+        let bookmarkData = update.fileBookmarkData ?? (try? update.fileURL.bookmarkData(
+            options: [.withSecurityScope],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        ))
+
+        let persistedUpdate = PendingExternalUpdate(
+            bundleIdentifier: update.bundleIdentifier,
+            version: update.version,
+            fileURL: update.fileURL,
+            fileBookmarkData: bookmarkData
+        )
+
         var updates = all()
-        updates[update.bundleIdentifier] = update
+        updates[update.bundleIdentifier] = persistedUpdate
         persist(updates)
     }
 
@@ -32,19 +122,14 @@ struct PendingUpdateStore {
 
     private func all() -> [String: PendingExternalUpdate] {
         guard let data = defaults.data(forKey: storageKey),
-              let updates = try? JSONDecoder().decode(
-                  [String: PendingExternalUpdate].self,
-                  from: data
-              ) else {
+              let updates = try? JSONDecoder().decode([String: PendingExternalUpdate].self, from: data) else {
             return [:]
         }
         return updates
     }
 
     private func persist(_ updates: [String: PendingExternalUpdate]) {
-        guard let data = try? JSONEncoder().encode(updates) else {
-            return
-        }
+        guard let data = try? JSONEncoder().encode(updates) else { return }
         defaults.set(data, forKey: storageKey)
     }
 }
