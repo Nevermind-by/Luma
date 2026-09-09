@@ -236,6 +236,9 @@ struct ContentView: View {
                         onDownload: {
                             Task { await viewModel.downloadUpdate(for: application) }
                         },
+                        onCancelDownload: {
+                            viewModel.cancelDownload(for: application)
+                        },
                         onInstall: {
                             Task { await viewModel.installUpdate(for: application) }
                         },
