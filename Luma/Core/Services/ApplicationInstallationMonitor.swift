@@ -5,6 +5,8 @@ protocol InstalledApplicationVersionProviding: Sendable {
 }
 
 struct BundleApplicationVersionProvider: InstalledApplicationVersionProviding {
+    nonisolated init() {}
+
     func installedVersion(for application: InstalledApplication) -> SoftwareVersion? {
         guard let bundle = Bundle(url: application.bundleURL),
               bundle.bundleIdentifier == application.id.bundleIdentifier,
