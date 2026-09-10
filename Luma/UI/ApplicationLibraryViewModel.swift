@@ -234,7 +234,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
 
     func reopenInstaller(for application: InstalledApplication) async {
         guard case .awaitingUserInstallation(let version)? = downloadStates[application.id],
-              let pending = pendingUpdateStore.pending(for: application.id),
+              pendingUpdateStore.pending(for: application.id) != nil,
               let resolvedURL = pendingUpdateStore.resolvedFileURL(for: application.id),
               FileManager.default.fileExists(atPath: resolvedURL.path) else {
             return
