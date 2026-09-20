@@ -117,7 +117,7 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
             let types = WKWebsiteDataStore.allWebsiteDataTypes()
             dataStore.fetchDataRecords(ofTypes: types) { records in
                 let matchingRecords = records.filter { record in
-                    record.displayName.lowercased().contains("appstorrent.ru")
+                    Self.matchesAppsTorrentDataRecordName(record.displayName)
                 }
 
                 guard !matchingRecords.isEmpty else {
@@ -130,6 +130,15 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
                 }
             }
         }
+    }
+
+    nonisolated static func matchesAppsTorrentDataRecordName(_ displayName: String) -> Bool {
+        let normalizedName = displayName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        return normalizedName == "appstorrent.ru"
+            || normalizedName.hasSuffix(".appstorrent.ru")
     }
 
     private func processNextCaptureIfNeeded() {
