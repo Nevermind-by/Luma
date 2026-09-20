@@ -22,7 +22,7 @@ The current implementation includes:
 - Post-installer version monitoring so Luma can detect completion without modifying the existing app automatically.
 - Unit tests and GitHub Actions build/test/archive packaging.
 
-The current GitHub Actions release artifact is intentionally **unsigned**. Developer ID signing and notarization are the next distribution step.
+The current GitHub Actions release artifact is intentionally **unsigned**. Developer ID signing and notarization are the next distribution step. Release ZIP/DMG artifacts are accompanied by a SHA-256 checksum manifest.
 
 ## Update lifecycle
 
