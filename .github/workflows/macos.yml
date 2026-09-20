@@ -1,5 +1,12 @@
 name: macOS
 
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
