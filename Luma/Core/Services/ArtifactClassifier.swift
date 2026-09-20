@@ -88,18 +88,15 @@ struct ArtifactClassifier: ArtifactClassifying, Sendable {
             guard let descriptor = readBytes(
                 at: url,
                 offset: descriptorOffset,
-                count: max(130, blockSize)
+                count: 6
             ),
-            descriptor.count >= 130,
+            descriptor.count == 6,
             descriptor[0] == 1,
             descriptor.subdata(in: 1..<6) == signature else {
                 continue
             }
 
-            let declaredSize = UInt16(descriptor[128]) | (UInt16(descriptor[129]) << 8)
-            if Int(declaredSize) == blockSize {
-                return true
-            }
+            return true
         }
 
         return false
