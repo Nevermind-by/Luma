@@ -145,17 +145,17 @@ jobs:
           unzip -l "$ZIP" | grep -q 'Luma.app/'
           unzip -l "$ZIP" | grep -q 'Luma.app/Contents/Info.plist'
 
-          ATTACH_OUTPUT="$(hdiutil attach "$DMG" -nobrowse -readonly -plist)"
-          DEVICE="$(plutil -extract system-entities.0.dev-entry raw -o - - <<< "$ATTACH_OUTPUT")"
-          MOUNT_POINT="$(plutil -extract system-entities.0.mount-point raw -o - - <<< "$ATTACH_OUTPUT")"
+          MOUNT_POINT="$RUNNER_TEMP/luma-dmg"
+          mkdir -p "$MOUNT_POINT"
+          hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$MOUNT_POINT"
 
-          test -n "$DEVICE"
-          test -n "$MOUNT_POINT"
+          trap 'hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 || true' EXIT
+
           test -d "$MOUNT_POINT/Luma.app"
           test -f "$MOUNT_POINT/Luma.app/Contents/Info.plist"
 
-          DETACH_PATH="$DEVICE"
-          hdiutil detach "$DETACH_PATH"
+          hdiutil detach "$MOUNT_POINT"
+          trap - EXIT
 
       - name: Write artifact checksums
         run: |
