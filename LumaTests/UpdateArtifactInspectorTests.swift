@@ -53,6 +53,36 @@ struct UpdateArtifactInspectorTests {
     }
 
     @Test
+    func rejectsInvalidCodeSignature() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("LumaInspectorSignature-(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let appURL = try makeFixtureApplication(in: root, version: "2.0.0")
+        let artifact = DownloadedArtifact(
+            originalURL: URL(string: "https://example.com/Fixture.app")!,
+            finalURL: URL(string: "https://example.com/Fixture.app")!,
+            fileURL: appURL,
+            filename: appURL.lastPathComponent,
+            mimeType: "application/octet-stream",
+            byteCount: Int64((try? appURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
+        )
+
+        do {
+            _ = try await UpdateArtifactInspector(
+                codeSignatureVerifier: StubCodeSignatureVerifier(isValid: false)
+            ).inspect(
+                artifact: artifact,
+                expectedApplication: ApplicationIdentity(bundleIdentifier: "com.example.fixture"),
+                expectedVersion: SoftwareVersion("2.0.0")
+            )
+            Issue.record("Expected invalid code signature")
+        } catch let error as UpdateArtifactInspector.InspectionError {
+            #expect(error == .invalidCodeSignature)
+        }
+    }
+
+    @Test
     func acceptsDiskImagePayloadWithoutTryingToMountIt() async throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory.appendingPathComponent("LumaInspectorTest-\(UUID().uuidString)")
