@@ -49,13 +49,9 @@ struct ISOImageExtractor: ISOImageExtracting, Sendable {
         }
         defer { try? handle.close() }
 
-        let blockSize = try readUInt16LE(handle, at: UInt64(sectorOffset * 2048 + 128))
-        guard blockSize == 2048 || blockSize == 1024 || blockSize == 512 else {
-            throw ExtractionError.unsupportedSectorSize
-        }
-
+        let blockSize = try detectLogicalBlockSize(in: handle)
         let descriptorOffset = UInt64(sectorOffset) * UInt64(blockSize)
-        let descriptor = try readBytes(handle, at: descriptorOffset, count: 2048)
+        let descriptor = try readBytes(handle, at: descriptorOffset, count: blockSize)
         guard descriptor.count >= 190,
               descriptor[0] == 1,
               String(data: descriptor.subdata(in: 1..<6), encoding: .ascii) == "CD001" else {
@@ -159,6 +155,25 @@ struct ISOImageExtractor: ISOImageExtracting, Sendable {
         }
 
         return nil
+    }
+
+    private func detectLogicalBlockSize(in handle: FileHandle) throws -> Int {
+        for candidate in [2048, 1024, 512] {
+            let descriptorOffset = UInt64(sectorOffset * candidate)
+            let descriptor = try readBytes(handle, at: descriptorOffset, count: max(190, candidate))
+            guard descriptor.count >= 130,
+                  descriptor[0] == 1,
+                  String(data: descriptor.subdata(in: 1..<6), encoding: .ascii) == "CD001" else {
+                continue
+            }
+
+            let declaredSize = UInt16(descriptor[128]) | (UInt16(descriptor[129]) << 8)
+            if Int(declaredSize) == candidate {
+                return candidate
+            }
+        }
+
+        throw ExtractionError.invalidPrimaryVolumeDescriptor
     }
 
     private func parseDirectoryRecord(_ data: Data) throws -> DirectoryRecord {
