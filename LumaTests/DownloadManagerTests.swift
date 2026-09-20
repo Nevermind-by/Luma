@@ -66,6 +66,48 @@ struct DownloadManagerTests {
     }
 
     @Test
+    func matchesCookiePathAndRejectsSimilarPaths() throws {
+        let cookie = try HTTPCookie(properties: [
+            .domain: "example.com",
+            .path: "/downloads",
+            .name: "session",
+            .value: "session",
+            .secure: "TRUE"
+        ]).unwrap()
+
+        #expect(
+            !DownloadManager.matchingCookies(
+                [cookie],
+                for: URL(string: "https://example.com/downloads/file.dmg")!
+            ).isEmpty
+        )
+        #expect(
+            DownloadManager.matchingCookies(
+                [cookie],
+                for: URL(string: "https://example.com/downloads-other/file.dmg")!
+            ).isEmpty
+        )
+    }
+
+    @Test
+    func rootCookiePathMatchesAnyPath() throws {
+        let cookie = try HTTPCookie(properties: [
+            .domain: "example.com",
+            .path: "/",
+            .name: "session",
+            .value: "session",
+            .secure: "TRUE"
+        ]).unwrap()
+
+        #expect(
+            !DownloadManager.matchingCookies(
+                [cookie],
+                for: URL(string: "https://example.com/any/path")!
+            ).isEmpty
+        )
+    }
+
+    @Test
     func rejectsSecureCookiesForHTTPDownloads() throws {
         let cookie = try HTTPCookie(properties: [
             .domain: "example.com",
