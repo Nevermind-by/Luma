@@ -4,12 +4,13 @@ import OSLog
 nonisolated protocol DownloadManaging: Sendable {
     func download(
         _ option: DownloadOption,
+        for application: ApplicationIdentity,
         to directory: URL,
         cookies: [HTTPCookie],
         progress: @escaping @Sendable (DownloadProgress) -> Void
     ) async throws -> DownloadedArtifact
 
-    func cancelDownload(for url: URL)
+    func cancelDownload(for application: ApplicationIdentity)
 }
 
 final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManaging, @unchecked Sendable {
@@ -38,6 +39,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
 
     private struct Job {
         let task: URLSessionDownloadTask
+        let application: ApplicationIdentity
         let originalURL: URL
         let requestedFilename: String
         let destinationDirectory: URL
@@ -62,6 +64,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
 
     func download(
         _ option: DownloadOption,
+        for application: ApplicationIdentity,
         to directory: URL,
         cookies: [HTTPCookie] = [],
         progress: @escaping @Sendable (DownloadProgress) -> Void
@@ -95,6 +98,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
             lock.lock()
             jobs[task.taskIdentifier] = Job(
                 task: task,
+                application: application,
                 originalURL: option.url,
                 requestedFilename: requestedFilename,
                 destinationDirectory: directory,
@@ -107,10 +111,10 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         }
     }
 
-    func cancelDownload(for url: URL) {
+    func cancelDownload(for application: ApplicationIdentity) {
         let cancelledJob: Job?
         lock.lock()
-        if let taskIdentifier = jobs.first(where: { $0.value.originalURL == url })?.key {
+        if let taskIdentifier = jobs.first(where: { $0.value.application == application })?.key {
             cancelledJob = jobs.removeValue(forKey: taskIdentifier)
         } else {
             cancelledJob = nil
@@ -120,7 +124,9 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         guard let cancelledJob else { return }
 
         cancelledJob.task.cancel()
-        LumaLog.appsTorrent.info("Download cancelled: \(url.absoluteString, privacy: .private)")
+        LumaLog.appsTorrent.info(
+            "Download cancelled for application \(application.bundleIdentifier, privacy: .private): \(cancelledJob.originalURL.absoluteString, privacy: .private)"
+        )
         cancelledJob.continuation.resume(throwing: DownloadError.cancelled)
     }
 
