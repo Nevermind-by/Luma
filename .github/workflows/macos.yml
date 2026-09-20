@@ -132,6 +132,39 @@ jobs:
             -format UDZO \
             "build/package/Luma-macOS-$LUMA_VERSION-unsigned.dmg"
 
+      - name: Validate packaged artifacts
+        run: |
+          set -euo pipefail
+
+          ZIP="build/package/Luma-macOS-$LUMA_VERSION-unsigned.zip"
+          DMG="build/package/Luma-macOS-$LUMA_VERSION-unsigned.dmg"
+
+          test -s "$ZIP"
+          test -s "$DMG"
+
+          unzip -l "$ZIP" | grep -q 'Luma.app/'
+          unzip -l "$ZIP" | grep -q 'Luma.app/Contents/Info.plist'
+
+          ATTACH_OUTPUT="$(hdiutil attach "$DMG" -nobrowse -readonly -plist)"
+          DEVICE="$(plutil -extract system-entities.0.dev-entry raw -o - - <<< "$ATTACH_OUTPUT")"
+          MOUNT_POINT="$(plutil -extract system-entities.0.mount-point raw -o - - <<< "$ATTACH_OUTPUT")"
+
+          test -n "$DEVICE"
+          test -n "$MOUNT_POINT"
+          test -d "$MOUNT_POINT/Luma.app"
+          test -f "$MOUNT_POINT/Luma.app/Contents/Info.plist"
+
+          DETACH_PATH="$DEVICE"
+          hdiutil detach "$DETACH_PATH"
+
+      - name: Write artifact checksums
+        run: |
+          set -euo pipefail
+          cd build/package
+          shasum -a 256 * > SHA256SUMS.txt
+          test -s SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
