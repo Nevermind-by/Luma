@@ -272,9 +272,22 @@ final class ApplicationLibraryViewModel: ObservableObject {
     }
 
     func showDownloadedFile(for application: InstalledApplication) {
-        guard case .readyToInstall(let preparedUpdate)? = downloadStates[application.id] else { return }
+        let artifactURL: URL
+
+        switch downloadStates[application.id] {
+        case .readyToInstall(let preparedUpdate):
+            artifactURL = preparedUpdate.artifactURL
+        case .awaitingUserInstallation:
+            guard let resolvedURL = pendingUpdateStore.resolvedFileURL(for: application.id) else { return }
+            artifactURL = resolvedURL
+        default:
+            return
+        }
+
         let fileAccess = pendingUpdateStore.beginFileAccess(for: application.id)
-        NSWorkspace.shared.activateFileViewerSelecting([fileAccess?.url ?? preparedUpdate.artifactURL])
+        NSWorkspace.shared.activateFileViewerSelecting([
+            fileAccess?.url ?? artifactURL
+        ])
         fileAccess?.stop()
     }
 
