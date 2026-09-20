@@ -389,7 +389,7 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
             completionHandler(destination)
 
             LumaLog.appsTorrent.info(
-                "AppsTorrent download response: filename=\(filename, privacy: .public), mime=\(response.mimeType ?? "unknown", privacy: .public), url=\((response.url ?? activeDownload.url).absoluteString, privacy: .public)"
+                "AppsTorrent download response: filename=\(filename, privacy: .private), mime=\(response.mimeType ?? "unknown", privacy: .private), url=\((response.url ?? activeDownload.url).absoluteString, privacy: .private)"
             )
         }
     }
@@ -398,7 +398,7 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.activeDownloadFinalURL = url
-            LumaLog.appsTorrent.info("AppsTorrent download final URL: \(url.absoluteString, privacy: .public)")
+            LumaLog.appsTorrent.info("AppsTorrent download final URL: \(url.absoluteString, privacy: .private)")
         }
     }
 
@@ -413,7 +413,7 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
             let resourceValues = try? destination.resourceValues(forKeys: [.fileSizeKey])
             let byteCount = Int64(resourceValues?.fileSize ?? 0)
             LumaLog.appsTorrent.info(
-                "AppsTorrent download finished: path=\(destination.path, privacy: .public), bytes=\(byteCount, privacy: .public)"
+                "AppsTorrent download finished: path=\(destination.path, privacy: .private), bytes=\(byteCount, privacy: .private)"
             )
             self.finishActiveDownload(with: .success(DownloadedArtifact(
                 originalURL: activeDownload.url,
@@ -434,7 +434,7 @@ extension AppsTorrentBrowserSession: WKDownloadDelegate {
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.state = .failed(error.localizedDescription)
-            LumaLog.appsTorrent.error("AppsTorrent WKDownload failed: \(error.localizedDescription, privacy: .public)")
+            LumaLog.appsTorrent.error("AppsTorrent WKDownload failed: \(error.localizedDescription, privacy: .private)")
             self.finishActiveDownload(with: .failure(error))
         }
     }

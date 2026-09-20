@@ -66,7 +66,7 @@ final class ApplicationInstaller: ApplicationInstalling {
             }
 
             LumaLog.updates.info(
-                "Opening external installer: \(installerURL.path, privacy: .public)"
+                "Opening external installer: \(installerURL.path, privacy: .private)"
             )
             let didOpen = NSWorkspace.shared.open(installerURL)
             guard didOpen else {
