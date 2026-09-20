@@ -9,7 +9,7 @@ struct ApplicationIconView: View {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = 256
         return cache
-    }
+    }()
 
     var body: some View {
         Image(nsImage: icon)
