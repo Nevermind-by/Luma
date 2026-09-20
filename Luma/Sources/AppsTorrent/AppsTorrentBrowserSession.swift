@@ -104,15 +104,9 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
     func cookies(for url: URL) async -> [HTTPCookie] {
         await withCheckedContinuation { continuation in
             self.webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { cookies in
-                let host = url.host?.lowercased()
-                let matching = cookies.filter { cookie in
-                    guard let host else { return false }
-                    let domain = cookie.domain
-                        .lowercased()
-                        .trimmingCharacters(in: CharacterSet(charactersIn: "."))
-                    return host == domain || host.hasSuffix(".\(domain)")
-                }
-                continuation.resume(returning: matching)
+                continuation.resume(
+                    returning: HTTPCookieMatcher.matchingCookies(cookies, for: url)
+                )
             }
         }
     }

@@ -125,25 +125,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
     }
 
     static func matchingCookies(_ cookies: [HTTPCookie], for url: URL) -> [HTTPCookie] {
-        guard let host = url.host?.lowercased() else { return [] }
-        let now = Date()
-
-        return cookies.filter { cookie in
-            guard !cookie.isExpired(at: now) else { return false }
-
-            let domain = cookie.domain
-                .lowercased()
-                .trimmingCharacters(in: CharacterSet(charactersIn: "."))
-
-            let hostMatches = host == domain || host.hasSuffix(".\(domain)")
-            guard hostMatches else { return false }
-
-            if cookie.isSecure && url.scheme?.lowercased() != "https" {
-                return false
-            }
-
-            return true
-        }
+        HTTPCookieMatcher.matchingCookies(cookies, for: url)
     }
 
     private func sanitizedFilename(from url: URL) -> String {
