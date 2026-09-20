@@ -38,6 +38,51 @@ struct AppsTorrentPageParserTests {
         #expect(release.downloadOptions[2].url.absoluteString == "https://www.mediafire.com/file/test/file")
     }
 
+
+
+    @Test func resolvesRelativeHTTPSDownloadURLAgainstPage() throws {
+        let html = """
+        <h1 itemprop="name">Some App</h1>
+        <span itemprop="softwareVersion">1.2.3</span>
+        <!--dle_spoiler Some App 1.2.3 -->
+        <a href="/downloads/Some-App.zip">Прямая ссылка</a>
+        """
+        let pageURL = URL(string: "https://appstorrent.ru/some-app.html")!
+
+        let release = try parser.parse(html: html, pageURL: pageURL)
+
+        #expect(release.downloadOptions.count == 1)
+        #expect(release.downloadOptions[0].url.absoluteString == "https://appstorrent.ru/downloads/Some-App.zip")
+    }
+
+    @Test func ignoresNonHTTPDownloadURL() {
+        let html = """
+        <h1 itemprop="name">Some App</h1>
+        <span itemprop="softwareVersion">1.2.3</span>
+        <!--dle_spoiler Some App 1.2.3 -->
+        <a href="file:///tmp/Some-App.zip">Прямая ссылка</a>
+        """
+        let pageURL = URL(string: "https://appstorrent.ru/some-app.html")!
+
+        #expect(throws: AppsTorrentPageParser.ParserError.invalidDownloadURL) {
+            try parser.parse(html: html, pageURL: pageURL)
+        }
+    }
+
+    @Test func ignoresDownloadURLWithEmbeddedCredentials() {
+        let html = """
+        <h1 itemprop="name">Some App</h1>
+        <span itemprop="softwareVersion">1.2.3</span>
+        <!--dle_spoiler Some App 1.2.3 -->
+        <a href="https://user:password@example.com/Some-App.zip">Прямая ссылка</a>
+        """
+        let pageURL = URL(string: "https://appstorrent.ru/some-app.html")!
+
+        #expect(throws: AppsTorrentPageParser.ParserError.invalidDownloadURL) {
+            try parser.parse(html: html, pageURL: pageURL)
+        }
+    }
+
     @Test func detectsMASDistributionVariant() throws {
         let html = """
         <h1 itemprop="name">Parallels Desktop 27 [MAS]</h1>
