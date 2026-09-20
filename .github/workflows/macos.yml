@@ -1,4 +1,4 @@
-name: macOS
+name: Сборка macOS
 
 permissions:
   contents: read
@@ -21,10 +21,10 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Checkout
+      - name: Получить исходный код
         uses: actions/checkout@v4
 
-      - name: Build
+      - name: Сборка
         run: |
           xcodebuild \
             -project Luma.xcodeproj \
@@ -32,7 +32,7 @@ jobs:
             -destination 'platform=macOS' \
             build
 
-      - name: Test
+      - name: Тесты
         run: |
           xcodebuild \
             -project Luma.xcodeproj \
@@ -46,10 +46,10 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Checkout
+      - name: Получить исходный код
         uses: actions/checkout@v4
 
-      - name: Read release version
+      - name: Определить версию
         run: |
           set -euo pipefail
           VERSION="$(
@@ -63,7 +63,7 @@ jobs:
           test -n "$VERSION"
           echo "LUMA_VERSION=$VERSION" >> "$GITHUB_ENV"
 
-      - name: Archive Release
+      - name: Создать архив Release-сборки
         run: |
           set -euo pipefail
           rm -rf build
@@ -76,7 +76,7 @@ jobs:
             archive \
             -archivePath build/Luma.xcarchive
 
-      - name: Validate release configuration
+      - name: Проверить конфигурацию релиза
         run: |
           set -euo pipefail
 
@@ -114,7 +114,7 @@ jobs:
           echo "Validated Luma $VERSION ($BUILD), bundle $BUNDLE_ID"
           echo "Release archive is intentionally unsigned in this workflow."
 
-      - name: Package ZIP
+      - name: Создать ZIP
         run: |
           set -euo pipefail
           mkdir -p build/package
@@ -122,7 +122,7 @@ jobs:
             build/Luma.xcarchive/Products/Applications/Luma.app \
             "build/package/Luma-macOS-$LUMA_VERSION-unsigned.zip"
 
-      - name: Package DMG
+      - name: Создать DMG
         run: |
           set -euo pipefail
           hdiutil create \
@@ -132,7 +132,7 @@ jobs:
             -format UDZO \
             "build/package/Luma-macOS-$LUMA_VERSION-unsigned.dmg"
 
-      - name: Validate packaged artifacts
+      - name: Проверить артефакты
         run: |
           set -euo pipefail
 
@@ -157,7 +157,7 @@ jobs:
           hdiutil detach "$MOUNT_POINT"
           trap - EXIT
 
-      - name: Write artifact checksums
+      - name: Создать контрольные суммы
         run: |
           set -euo pipefail
           cd build/package
@@ -165,7 +165,7 @@ jobs:
           test -s SHA256SUMS.txt
           cat SHA256SUMS.txt
 
-      - name: Upload Release Artifacts
+      - name: Загрузить артефакты CI
         uses: actions/upload-artifact@v4
         with:
           name: Luma-macOS-unsigned
