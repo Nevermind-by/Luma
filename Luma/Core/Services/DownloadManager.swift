@@ -135,7 +135,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
                 .lowercased()
                 .trimmingCharacters(in: CharacterSet(charactersIn: "."))
 
-            let hostMatches = host == domain || host.hasSuffix(".(domain)")
+            let hostMatches = host == domain || host.hasSuffix(".\(domain)")
             guard hostMatches else { return false }
 
             if cookie.isSecure && url.scheme?.lowercased() != "https" {
