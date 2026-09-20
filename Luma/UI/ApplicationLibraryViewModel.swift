@@ -121,7 +121,15 @@ final class ApplicationLibraryViewModel: ObservableObject {
 
     func logoutAppsTorrent() async {
         await authenticationManager.logout()
-        appsTorrentConnection = UpdateSourceConnection(id: "appstorrent", name: "AppsTorrent", state: .signInRequired)
+        markAppsTorrentLoginRequired()
+    }
+
+    func markAppsTorrentLoginRequired() {
+        appsTorrentConnection = UpdateSourceConnection(
+            id: "appstorrent",
+            name: "AppsTorrent",
+            state: .signInRequired
+        )
         updateStates = [:]
         downloadStates = [:]
     }
