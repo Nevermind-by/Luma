@@ -144,10 +144,26 @@ DownloadManager
 Downloaded artifact
       |
       v
-Installer (future)
+Prepared pending update
+      |
+      v
+External installer hand-off
+      |
+      v
+User completes installation in macOS
+      |
+      v
+Installation monitor
+      |
+      v
+Installed version reconciled
 ```
 
-The first MVP stops at a successfully downloaded artifact and a clear hand-off to the user.
+For `.dmg`, `.pkg`, and other external installer artifacts, Luma opens the artifact through macOS Launch Services and waits for the user-driven installation to complete.
+
+Luma does not automatically delete the existing application to satisfy an external installer, and it does not silently execute arbitrary downloaded code.
+
+Direct replacement of an `.app` payload remains a separate installer path and must retain the same security review boundary.
 
 ## 8. Error handling
 
@@ -169,7 +185,9 @@ The UI should turn these into user-facing messages without depending on low-leve
 
 Downloaded artifacts are untrusted input.
 
-Luma should not silently execute arbitrary downloaded code. Automatic installation, code-signing validation, quarantine handling, and any privileged operation require an explicit design phase.
+Luma should not silently execute arbitrary downloaded code. External installer artifacts are handed to macOS rather than executed by Luma. Gatekeeper and quarantine controls must not be bypassed.
+
+Any future direct `.app` replacement path must include explicit code-signature validation, quarantine considerations, and a reviewed privileged-operation model before it is enabled for downloaded artifacts.
 
 ## 10. Initial folder structure
 
@@ -205,7 +223,7 @@ We build from the inside out:
 7. Matching and update detection.
 8. Download manager.
 9. SwiftUI interface.
-10. Installation workflow.
-11. Background checks, notifications, releases, and CI.
+10. Installation workflow and post-installation monitoring.
+11. Release hardening, Developer ID signing/notarization, background checks, notifications, and additional sources.
 
 Each step should leave the project in a runnable state.
