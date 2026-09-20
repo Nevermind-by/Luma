@@ -5,6 +5,12 @@ struct ApplicationIconView: View {
     let applicationURL: URL
     var size: CGFloat = 50
 
+    private static let iconCache: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 256
+        return cache
+    }()
+
     var body: some View {
         Image(nsImage: icon)
             .resizable()
@@ -16,11 +22,22 @@ struct ApplicationIconView: View {
     }
 
     private var icon: NSImage {
-        let image = NSWorkspace.shared.icon(forFile: applicationURL.path)
-        guard image.isValid, image.size.width > 0, image.size.height > 0 else {
-            return fallbackIcon
+        let cacheKey = applicationURL.standardizedFileURL.path as NSString
+        if let cachedImage = Self.iconCache.object(forKey: cacheKey) {
+            return cachedImage
         }
-        return image
+
+        let image = NSWorkspace.shared.icon(forFile: applicationURL.path)
+        let resolvedImage: NSImage
+
+        if image.isValid, image.size.width > 0, image.size.height > 0 {
+            resolvedImage = image
+        } else {
+            resolvedImage = fallbackIcon
+        }
+
+        Self.iconCache.setObject(resolvedImage, forKey: cacheKey)
+        return resolvedImage
     }
 
     private var fallbackIcon: NSImage {
