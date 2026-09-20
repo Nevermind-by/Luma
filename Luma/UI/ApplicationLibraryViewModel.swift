@@ -174,6 +174,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
         do {
             let artifact = try await downloadManager.download(
                 option,
+                for: application.id,
                 to: destinationDirectory,
                 cookies: cookies
             ) { [downloadProgressReporter] progress in
@@ -217,7 +218,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
             return
         }
 
-        downloadManager.cancelDownload(for: option.url)
+        downloadManager.cancelDownload(for: application.id)
         downloadStates[application.id] = .notStarted
     }
 
