@@ -1,84 +1,169 @@
 # Luma
 
-Luma is a native macOS application for keeping installed applications up to date from configurable software sources.
+Luma — нативное приложение для macOS, которое помогает находить обновления установленных приложений, загружать подходящие пакеты и проводить пользователя через установку.
 
-The initial goal is simple: detect applications installed on a Mac, determine their installed versions, compare them with versions available from supported sources, and present actionable updates in one place.
+Проект находится в активной разработке. Публичный репозиторий используется как исходный код проекта и будущая точка распространения. Первый публичный релиз пока не выпускается.
 
-## Project status
+## Что уже работает
 
-Working MVP with release-hardening in progress.
+- Поиск приложений в стандартных каталогах `/Applications` и `/System/Applications`.
+- Определение имени, bundle identifier, установленной версии и признака установки из Mac App Store.
+- Единая модель идентичности приложения по bundle identifier.
+- Отдельный модуль сравнения версий без жёсткой привязки к SemVer.
+- Архитектура источников обновлений через протокол `UpdateSource`.
+- Интеграция с AppsTorrent: поиск страниц приложения, разбор релизов, выбор варианта установки и получение ссылок на загрузку.
+- Авторизация AppsTorrent через нативный `WKWebView` и сохранение состояния сессии в WebKit.
+- Проверка обновлений для всей библиотеки и для отдельного приложения.
+- Поиск по списку приложений и фильтры «Все», «Обновления», «Актуальные», «Требуют внимания».
+- Загрузка файлов с сохранённой папкой назначения, security-scoped bookmarks, cookies для допустимого домена и его поддоменов, обработкой перенаправлений, отменой загрузки и сохранением фактического имени файла.
+- Сохранение состояния незавершённого обновления между запусками Luma.
+- Передача `.dmg`, `.pkg` и других внешних установщиков macOS через Launch Services.
+- Отслеживание завершения внешней установки по фактической установленной версии.
+- Отдельный путь для замены `.app` с пользовательским разрешением на каталог установки, проверкой bundle identifier и версии и попыткой отката при ошибке.
+- Unit-тесты для критичной логики.
+- GitHub Actions для сборки, тестов, архивации и проверки ZIP и DMG.
 
-The current implementation includes:
+## Что ещё в работе
 
-- Discovery of installed `.app` bundles.
-- Application identity and installed-version extraction.
-- Dedicated version comparison.
-- AppsTorrent source integration with a native `WKWebView` session.
-- AppsTorrent release parsing and distribution-variant matching.
-- Update detection.
-- Download management with persisted download-location access.
-- Persisted pending installer state.
-- External installer hand-off for `.dmg`, `.pkg`, and other installer artifacts.
-- Post-installer version monitoring so Luma can detect completion without modifying the existing app automatically.
-- Unit tests and GitHub Actions build/test/archive packaging.
+- несколько независимых источников обновлений;
+- более надёжное сопоставление приложения с источником;
+- более полноценная модель ошибок и диагностики на уровне интерфейса;
+- фоновая проверка обновлений;
+- уведомления;
+- настройки поведения Luma;
+- дополнительные сценарии установки и восстановления;
+- безопасность загруженных `.app` перед прямой заменой;
+- подготовка подписанного и нотариально заверенного релиза;
+- финальная схема публичного распространения через GitHub Releases.
 
-The current GitHub Actions release artifact is intentionally **unsigned**. Developer ID signing and notarization are the next distribution step. Release ZIP/DMG artifacts are accompanied by a SHA-256 checksum manifest.
+## Как устроен Luma
 
-When `main` changes, GitHub Actions builds and validates the release artifacts. On a new version, the workflow also creates a GitHub Release tagged as `v<version>` and attaches the DMG, ZIP, and checksum manifest for download. The repository is public, so these releases can be downloaded without access to the source checkout.
-
-A separate manual workflow, `.github/workflows/release-signed.yml`, prepares a Developer ID signed release and submits the DMG to Apple for notarization. It expects these GitHub Actions secrets:
-
-- `APPLE_CERTIFICATE_P12_BASE64` — base64-encoded Developer ID Application certificate exported as PKCS#12.
-- `APPLE_CERTIFICATE_PASSWORD` — password for that PKCS#12 file.
-- `APPLE_TEAM_ID` — Apple Developer Team ID.
-- `APPLE_ID` — Apple ID used for notarization.
-- `APPLE_APP_SPECIFIC_PASSWORD` — app-specific password for `notarytool`.
-
-The signing workflow is intentionally **manual** until those secrets are configured. It imports the certificate into an ephemeral CI keychain, signs the archive, notarizes the DMG with `notarytool`, staples the ticket, validates the result, and removes the temporary keychain.
-
-## Update lifecycle
+Основной принцип — разделение ответственности между доменной моделью, сервисами, источниками обновлений, хранением состояния и интерфейсом.
 
 ```text
-Installed app
-    ↓
-Check source
-    ↓
-Update available
-    ↓
-Download artifact
-    ↓
-Open external installer
-    ↓
-User completes installation in macOS
-    ↓
-Luma detects the installed version
+                   SwiftUI
+                      │
+                      ▼
+      ApplicationLibraryViewModel
+                      │
+       ┌──────────────┼──────────────┐
+       ▼              ▼              ▼
+ Application      UpdateChecker   DownloadManager
+ Scanner               │              │
+       │               ▼              ▼
+       │          UpdateSource     PreparedUpdate
+       │               │              │
+       │               ▼              ▼
+       │        AppsTorrentSource   Installer
+       │                              │
+       ▼                              ▼
+ InstalledApplication          InstallationMonitor
 ```
 
-Luma does not silently remove the currently installed application and does not disable macOS security controls such as Gatekeeper or quarantine handling.
+Подробное описание текущей архитектуры находится в [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
-## Architecture
+## Жизненный цикл обновления
 
-Luma is organized around a small core and pluggable update sources. The core must not depend on a specific website or distribution channel.
+```text
+Установленное приложение
+        ↓
+Сканирование
+        ↓
+Поиск кандидатов на обновление
+        ↓
+Сравнение версий
+        ↓
+Обновление найдено
+        ↓
+Загрузка
+        ↓
+Подготовка обновления
+        ↓
+┌──────────────────────────────┐
+│ Внешний установщик           │
+│ → macOS / пользователь       │
+│                              │
+│ либо                         │
+│                              │
+│ Прямая замена .app           │
+│ → проверка → откат при ошибке│
+└──────────────────────────────┘
+        ↓
+Проверка установленной версии
+        ↓
+Обновление состояния Luma
+```
 
-See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the current design.
+## Безопасность
 
-## Security boundary
+Загруженные файлы рассматриваются как недоверенные данные.
 
-Downloaded artifacts are treated as untrusted input. Luma keeps source-session state inside the persistent WebKit data store, does not store credentials or cookies in the repository, and uses App Sandbox file-access entitlements for its documented file operations.
+Luma:
 
-The external installer remains responsible for its own installation UX and macOS security prompts.
+- не хранит учётные данные AppsTorrent в репозитории;
+- не выполняет произвольный загруженный код напрямую;
+- передаёт внешние установщики macOS через системный механизм открытия;
+- использует App Sandbox и явно запрошенный пользователем доступ к файловой системе;
+- не отключает Gatekeeper и не удаляет quarantine-метаданные;
+- сохраняет исходное приложение до успешной проверки при прямой замене `.app`.
 
-## Technology
+Безопасность прямой замены загруженного приложения остаётся отдельной областью работы: перед публичным распространением здесь необходимы дополнительные проверки доверия к артефакту.
 
-- Swift
-- SwiftUI
-- macOS
-- Xcode
+## Сборка и разработка
 
-The UI is built with SwiftUI, while macOS-specific capabilities can use AppKit and other system frameworks where appropriate.
+### Требования
 
-## Development
+- macOS 14.0 или новее;
+- Xcode с поддержкой текущего проекта.
 
-The repository is intentionally kept small. New functionality should be introduced in focused changes with tests for non-trivial parsing, comparison, persistence, and lifecycle behavior.
+### Локальная сборка
 
-Run the Xcode scheme `Luma` locally to build and test. GitHub Actions runs the same project build and test flow on macOS.
+Откройте `Luma.xcodeproj` в Xcode, выберите схему `Luma` и выполните обычную сборку.
+
+Для проверки тестов используйте:
+
+```text
+Product → Test
+```
+
+GitHub Actions автоматически выполняет сборку и тесты на macOS после изменений.
+
+## GitHub Actions
+
+Основной workflow находится в [`.github/workflows/macos.yml`](.github/workflows/macos.yml).
+
+Он выполняет:
+
+1. сборку проекта;
+2. запуск тестов;
+3. архивирование Release-сборки;
+4. проверку bundle identifier, версии, иконки, sandbox и hardened runtime;
+5. упаковку ZIP и DMG;
+6. проверку содержимого пакетов;
+7. формирование SHA-256 контрольных сумм;
+8. загрузку артефактов в GitHub Actions.
+
+Автоматическая публикация GitHub Release пока отключена. Публичные релизы появятся после того, как функциональность Luma будет доведена до готового состояния.
+
+## Документация
+
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — актуальная архитектура и границы модулей.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — правила разработки и внесения изменений.
+- [`SECURITY.md`](SECURITY.md) — порядок сообщения об уязвимостях.
+- [`CHANGELOG.md`](CHANGELOG.md) — история пользовательски значимых изменений.
+
+## Принцип разработки
+
+Предпочтение отдаётся небольшим изолированным изменениям:
+
+```text
+изменение
+   ↓
+тест
+   ↓
+проверка CI
+   ↓
+следующее изменение
+```
+
+Критическая логика должна иметь тесты. Архитектурные границы не должны размываться ради быстрого добавления функциональности.
