@@ -262,17 +262,17 @@ final class AppsTorrentBrowserSession: NSObject, ObservableObject {
         var errorDescription: String? {
             switch self {
             case .pageNotLoaded:
-                return "The AppsTorrent page is not loaded yet."
+                return String(localized: "The AppsTorrent page is not loaded yet.")
             case .invalidHTML:
-                return "The browser did not return page HTML."
+                return String(localized: "The browser did not return page HTML.")
             case .processTerminated:
-                return "The AppsTorrent browser process terminated."
+                return String(localized: "The AppsTorrent browser process terminated.")
             case .timeout:
-                return "The AppsTorrent page did not finish loading within 30 seconds."
+                return String(localized: "The AppsTorrent page did not finish loading within 30 seconds.")
             case .downloadInProgress:
-                return "An AppsTorrent download is already in progress."
+                return String(localized: "An AppsTorrent download is already in progress.")
             case .downloadFailed:
-                return "The AppsTorrent browser could not download the file."
+                return String(localized: "The AppsTorrent browser could not download the file.")
             }
         }
     }
