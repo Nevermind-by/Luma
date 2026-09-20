@@ -5,7 +5,7 @@ import Testing
 struct DownloadManagerTests {
     @Test
     func filtersCookiesToTheDownloadHost() throws {
-        let appstorrentCookie = HTTPCookie(properties: [
+        let appstorrentCookie = try HTTPCookie(properties: [
             .domain: "appstorrent.ru",
             .path: "/",
             .name: "session",
@@ -13,7 +13,7 @@ struct DownloadManagerTests {
             .secure: "TRUE"
         ]).unwrap()
 
-        let unrelatedCookie = HTTPCookie(properties: [
+        let unrelatedCookie = try HTTPCookie(properties: [
             .domain: "mediafire.com",
             .path: "/",
             .name: "session",
@@ -31,7 +31,7 @@ struct DownloadManagerTests {
 
     @Test
     func allowsParentDomainCookiesForSecureSubdomains() throws {
-        let cookie = HTTPCookie(properties: [
+        let cookie = try HTTPCookie(properties: [
             .domain: ".appstorrent.ru",
             .path: "/",
             .name: "session",
@@ -49,7 +49,7 @@ struct DownloadManagerTests {
 
     @Test
     func rejectsSecureCookiesForHTTPDownloads() throws {
-        let cookie = HTTPCookie(properties: [
+        let cookie = try HTTPCookie(properties: [
             .domain: "example.com",
             .path: "/",
             .name: "session",
@@ -67,7 +67,7 @@ struct DownloadManagerTests {
 
     @Test
     func ignoresExpiredCookies() throws {
-        let cookie = HTTPCookie(properties: [
+        let cookie = try HTTPCookie(properties: [
             .domain: "example.com",
             .path: "/",
             .name: "session",
