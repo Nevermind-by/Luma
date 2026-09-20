@@ -22,19 +22,19 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
         var errorDescription: String? {
             switch self {
             case .invalidDownloadedResponse:
-                return "The downloaded response is not an application update."
+                return String(localized: "The downloaded response is not an application update.")
             case .unsupportedArtifactType(let type):
-                return "Luma recognized the downloaded file as \(type.rawValue), but that installer format is not supported yet."
+                return String(localized: "Luma recognized the downloaded file as \(type.rawValue), but that installer format is not supported yet.")
             case .extractionFailed:
-                return "Luma could not extract the downloaded update."
+                return String(localized: "Luma could not extract the downloaded update.")
             case .applicationNotFound:
-                return "No application bundle was found inside the downloaded update."
+                return String(localized: "No application bundle was found inside the downloaded update.")
             case .installerNotFound:
-                return "No installer disk image was found inside the downloaded ISO."
+                return String(localized: "No installer disk image was found inside the downloaded ISO.")
             case .bundleIdentifierMismatch(let expected, let actual):
-                return "The downloaded application is not the expected app (bundle ID \(actual), expected \(expected))."
+                return String(localized: "The downloaded application is not the expected app (bundle ID \(actual), expected \(expected)).")
             case .versionMismatch(let expected, let actual):
-                return "The downloaded application reports version \(actual), expected \(expected)."
+                return String(localized: "The downloaded application reports version \(actual), expected \(expected).")
             }
         }
     }
