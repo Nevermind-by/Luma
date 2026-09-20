@@ -12,7 +12,7 @@ struct CodeSignatureVerifier: CodeSignatureVerifying, Sendable {
         var staticCode: SecStaticCode?
         let createStatus = SecStaticCodeCreateWithPath(
             url as CFURL,
-            kSecCSDefaultFlags,
+            SecCSFlags(),
             &staticCode
         )
 
@@ -24,7 +24,7 @@ struct CodeSignatureVerifier: CodeSignatureVerifying, Sendable {
         var requirement: SecRequirement?
         let requirementStatus = SecRequirementCreateWithString(
             Self.requirement as CFString,
-            kSecCSDefaultFlags,
+            SecCSFlags(),
             &requirement
         )
 
@@ -35,7 +35,7 @@ struct CodeSignatureVerifier: CodeSignatureVerifying, Sendable {
 
         let validationStatus = SecStaticCodeCheckValidity(
             staticCode,
-            [kSecCSCheckAllArchitectures],
+            SecCSFlags(kSecCSCheckAllArchitectures),
             requirement
         )
 
