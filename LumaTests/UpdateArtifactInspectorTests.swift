@@ -54,7 +54,7 @@ struct UpdateArtifactInspectorTests {
 
     @Test
     func rejectsInvalidCodeSignature() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("LumaInspectorSignature-(UUID().uuidString)")
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("LumaInspectorSignature-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
 
