@@ -41,7 +41,7 @@ nonisolated struct AppsTorrentPageParser: Sendable {
         let titleValue = title.decodedHTML.trimmingCharacters(in: .whitespacesAndNewlines)
         let versionValue = version.trimmingCharacters(in: .whitespacesAndNewlines)
         let block = try currentReleaseBlock(html: html, version: versionValue)
-        let downloadOptions = try parseDownloadOptions(from: block)
+        let downloadOptions = try parseDownloadOptions(from: block, pageURL: pageURL)
 
         return AppsTorrentRelease(
             title: titleValue,
@@ -78,7 +78,7 @@ nonisolated struct AppsTorrentPageParser: Sendable {
         return block
     }
 
-    private func parseDownloadOptions(from block: String) throws -> [DownloadOption] {
+    private func parseDownloadOptions(from block: String, pageURL: URL) throws -> [DownloadOption] {
         let patterns: [(String, DownloadOption.Kind)] = [
             (#"<a\s+[^>]*href=[\"']([^\"']+)[\"'][^>]*>\s*Прямая ссылка"#, .direct),
             (#"<a\s+[^>]*href=[\"']([^\"']+)[\"'][^>]*>\s*Скачать с Mail\.ru"#, .external),
@@ -92,7 +92,7 @@ nonisolated struct AppsTorrentPageParser: Sendable {
                 pattern: pattern,
                 in: block,
                 options: [.caseInsensitive]
-            ), let url = URL(string: rawURL) else {
+            ), let url = validatedDownloadURL(rawURL, relativeTo: pageURL) else {
                 continue
             }
 
@@ -118,6 +118,19 @@ nonisolated struct AppsTorrentPageParser: Sendable {
         }
 
         return options
+    }
+
+    private func validatedDownloadURL(_ rawURL: String, relativeTo pageURL: URL) -> URL? {
+        guard let url = URL(string: rawURL, relativeTo: pageURL)?.absoluteURL,
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host != nil,
+              url.user == nil,
+              url.password == nil else {
+            return nil
+        }
+
+        return url
     }
 
     private func firstCapture(
