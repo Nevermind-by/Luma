@@ -253,7 +253,7 @@ final class ApplicationInstaller: ApplicationInstalling {
         }
     }
 
-    private func verifyInstalledApplication(
+    func verifyInstalledApplication(
         at url: URL,
         expected: PreparedUpdate
     ) -> Bool {
