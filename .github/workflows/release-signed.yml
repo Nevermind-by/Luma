@@ -85,7 +85,8 @@ jobs:
           grep -q "Developer ID Application:" "$RUNNER_TEMP/codesign.txt"
           grep -q "TeamIdentifier=$APPLE_TEAM_ID" "$RUNNER_TEMP/codesign.txt"
 
-          spctl --assess --type execute --verbose=4 "$APP" || true
+          # Gatekeeper assessment is performed after notarization/stapling below.
+          # At this stage the Developer ID signature itself is the required check.
 
       - name: Создать ZIP
         run: |
@@ -125,7 +126,7 @@ jobs:
           test -s "$ZIP"
 
           xcrun stapler validate "$DMG"
-          spctl --assess --type open --context context:primary-signature --verbose=4 "$DMG" || true
+          spctl --assess --type open --context context:primary-signature --verbose=4 "$DMG"
 
           MOUNT_POINT="$RUNNER_TEMP/luma-signed-dmg"
           mkdir -p "$MOUNT_POINT"
