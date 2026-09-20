@@ -17,19 +17,19 @@ struct ISOImageExtractor: ISOImageExtracting, Sendable {
         var errorDescription: String? {
             switch self {
             case .invalidPrimaryVolumeDescriptor:
-                return "The ISO image does not contain a valid ISO9660 primary volume descriptor."
+                return String(localized: "The ISO image does not contain a valid ISO9660 primary volume descriptor.")
             case .unsupportedSectorSize:
-                return "The ISO image uses an unsupported logical block size."
+                return String(localized: "The ISO image uses an unsupported logical block size.")
             case .rootDirectoryUnavailable:
-                return "The ISO root directory could not be read."
+                return String(localized: "The ISO root directory could not be read.")
             case .diskImageNotFound:
-                return "No disk image was found inside the ISO."
+                return String(localized: "No disk image was found inside the ISO.")
             case .invalidDirectoryRecord:
-                return "The ISO contains an invalid directory record."
+                return String(localized: "The ISO contains an invalid directory record.")
             case .truncatedFile:
-                return "A file inside the ISO is truncated."
+                return String(localized: "A file inside the ISO is truncated.")
             case .writeFailed:
-                return "Luma could not extract the disk image from the ISO."
+                return String(localized: "Luma could not extract the disk image from the ISO.")
             }
         }
     }
