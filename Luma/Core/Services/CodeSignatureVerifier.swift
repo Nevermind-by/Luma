@@ -35,7 +35,7 @@ struct CodeSignatureVerifier: CodeSignatureVerifying, Sendable {
 
         let validationStatus = SecStaticCodeCheckValidity(
             staticCode,
-            SecCSFlags(kSecCSCheckAllArchitectures),
+            SecCSFlags(rawValue: kSecCSCheckAllArchitectures),
             requirement
         )
 
