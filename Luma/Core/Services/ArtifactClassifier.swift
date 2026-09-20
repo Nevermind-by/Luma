@@ -80,11 +80,28 @@ struct ArtifactClassifier: ArtifactClassifying, Sendable {
     }
 
     private func hasISO9660Signature(at url: URL) -> Bool {
-        // Primary Volume Descriptor starts at sector 16 (32,768 bytes)
-        // and contains the standard ISO9660 identifier "CD001".
-        guard let signature = readBytes(at: url, offset: 32_769, count: 5), signature.count == 5 else {
-            return false
+        let signature = Data([0x43, 0x44, 0x30, 0x30, 0x31])
+
+        for blockSize in [2048, 1024, 512] {
+            let descriptorOffset = UInt64(16 * blockSize)
+
+            guard let descriptor = readBytes(
+                at: url,
+                offset: descriptorOffset,
+                count: max(130, blockSize)
+            ),
+            descriptor.count >= 130,
+            descriptor[0] == 1,
+            descriptor.subdata(in: 1..<6) == signature else {
+                continue
+            }
+
+            let declaredSize = UInt16(descriptor[128]) | (UInt16(descriptor[129]) << 8)
+            if Int(declaredSize) == blockSize {
+                return true
+            }
         }
-        return signature == Data([0x43, 0x44, 0x30, 0x30, 0x31])
+
+        return false
     }
 }
