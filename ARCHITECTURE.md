@@ -1,229 +1,466 @@
-# Luma Architecture
+# Архитектура Luma
 
-## 1. Product boundary
+## 1. Назначение документа
 
-Luma is an updater client, not an application marketplace.
+Этот документ описывает фактическую архитектуру текущей версии Luma, а не предполагаемую структуру будущих версий.
 
-Its responsibilities are:
+Главный принцип проекта — разделять пользовательский интерфейс, доменную логику, источники обновлений, загрузку, установку и хранение состояния. Конкретный источник обновлений не должен проникать в ядро приложения.
 
-1. Discover software installed on the local Mac.
-2. Identify each application and its installed version.
-3. Resolve an update source for an application.
-4. Retrieve the source's current version metadata.
-5. Compare installed and available versions.
-6. Let the user download an update.
-7. Eventually support an installation workflow.
+## 2. Границы продукта
 
-Luma must not assume that every application uses the same distribution channel.
+Luma — клиент для управления обновлениями приложений macOS.
 
-## 2. Architectural principle
+Luma отвечает за:
 
-The central rule is dependency inversion around update sources.
+1. поиск установленных приложений;
+2. получение их идентичности и версии;
+3. поиск доступных обновлений через подключённые источники;
+4. сравнение версий;
+5. загрузку выбранного артефакта;
+6. запуск внешнего установщика или выполнение отдельного сценария замены `.app`;
+7. контроль результата установки;
+8. хранение состояния, необходимого для продолжения процесса после перезапуска.
 
-The core knows about the concept of an `UpdateSource`, but it does not know about AppsTorrent, GitHub, Homebrew, or any other concrete source.
+Luma не является магазином приложений и не должна смешивать каталог программ, поиск обновлений и собственно установку в одном модуле.
 
-Conceptually:
-
-```text
-                    +-------------------+
-                    |       UI          |
-                    +---------+---------+
-                              |
-                              v
-                    +-------------------+
-                    |   Core / Services  |
-                    |                    |
-                    | AppScanner         |
-                    | VersionEngine      |
-                    | UpdateManager      |
-                    +---------+----------+
-                              |
-                    UpdateSource protocol
-                              |
-             +----------------+----------------+
-             |                                 |
-             v                                 v
-   +-------------------+              +-------------------+
-   | AppsTorrentSource |              | Future Source     |
-   +-------------------+              +-------------------+
-```
-
-Adding a new source should not require changes to the application's core update logic.
-
-## 3. Proposed modules
-
-### App
-
-The executable entry point and composition root.
-
-### Core/Models
-
-Pure domain models shared by services and UI.
-
-Initial concepts:
-
-- `InstalledApplication`
-- `ApplicationIdentity`
-- `SoftwareVersion`
-- `UpdateCandidate`
-- `DownloadOption`
-- `UpdateSourceDescriptor`
-
-Models should contain domain data and rules, not network or UI concerns.
-
-### Core/Services
-
-Application-independent business logic.
-
-Initial services:
-
-- `ApplicationScanner`
-- `VersionComparator`
-- `UpdateManager`
-- `DownloadManager`
-
-### Sources
-
-Adapters for external update sources.
-
-The first implementation will be `AppsTorrentSource`.
-
-A source adapter is responsible for fetching source data, parsing source-specific data, converting it into Luma domain models, and reporting source-specific errors.
-
-It must not manipulate SwiftUI state directly.
-
-### Persistence
-
-Local storage for source mappings, user preferences, cached metadata, and update state where needed.
-
-The concrete storage technology will be selected after the domain model is established.
-
-### UI
-
-SwiftUI views and presentation state.
-
-The UI should consume domain/service state and trigger application actions. Network requests and HTML parsing must never live directly inside views.
-
-### Tests
-
-Unit and integration tests for version parsing/comparison, application metadata extraction, source parsing, source-to-application matching, update detection, and download behavior.
-
-## 4. Application identity
-
-A display name is not sufficient to uniquely identify an installed application.
-
-Where available, Luma should use the macOS bundle identifier as the primary local identity and keep the bundle path as installation metadata.
-
-The source mapping layer should support aliases because a source's product name and a bundle's display name may differ.
-
-## 5. Version model
-
-Versions are external data and cannot be assumed to follow one universal semantic-versioning scheme.
-
-Luma should therefore keep version parsing/comparison in a dedicated component instead of scattering string comparisons through the application.
-
-The comparator will support multiple version shapes and explicitly document its comparison policy.
-
-## 6. Networking and source access
-
-Source access is asynchronous and isolated behind service protocols.
-
-For a source that requires browser execution or session state, the adapter may use a specialized implementation later. That complexity must remain inside the source adapter and must not leak into the core.
-
-## 7. Download and installation boundary
-
-Downloading and installing are separate responsibilities.
+## 3. Слои
 
 ```text
-Update detection
-      |
-      v
-DownloadManager
-      |
-      v
-Downloaded artifact
-      |
-      v
-Prepared pending update
-      |
-      v
-External installer hand-off
-      |
-      v
-User completes installation in macOS
-      |
-      v
-Installation monitor
-      |
-      v
-Installed version reconciled
+┌────────────────────────────────────────────────────┐
+│                    Пользователь                   │
+└───────────────────────┬────────────────────────────┘
+                        │
+                        ▼
+┌────────────────────────────────────────────────────┐
+│                    SwiftUI UI                     │
+│ ContentView / ApplicationRowView / состояние UI   │
+└───────────────────────┬────────────────────────────┘
+                        │
+                        ▼
+┌────────────────────────────────────────────────────┐
+│        ApplicationLibraryViewModel                │
+│   координация действий и состояния интерфейса    │
+└───────┬───────────────┬───────────────┬────────────┘
+        │               │               │
+        ▼               ▼               ▼
+ Application       UpdateChecker    DownloadManager
+ Scanner                 │               │
+                         ▼               ▼
+                    UpdateSource     PreparedUpdate
+                         │               │
+                         ▼               ▼
+                 AppsTorrentSource   ApplicationInstaller
+                                         │
+                                         ▼
+                                InstallationMonitor
+
+                 ┌───────────────────────────────┐
+                 │      Слой состояния           │
+                 │ UserDefaults + security       │
+                 │ scoped bookmarks              │
+                 └───────────────────────────────┘
 ```
 
-For `.dmg`, `.pkg`, and other external installer artifacts, Luma opens the artifact through macOS Launch Services and waits for the user-driven installation to complete.
+Слои не являются формальным отдельным фреймворком. Это границы ответственности между текущими типами и сервисами.
 
-Luma does not automatically delete the existing application to satisfy an external installer, and it does not silently execute arbitrary downloaded code.
+## 4. Слой пользовательского интерфейса
 
-Direct replacement of an `.app` payload remains a separate installer path and must retain the same security review boundary.
+### `ContentView`
 
-## 8. Error handling
+`ContentView` является основной точкой интерфейса библиотеки приложений.
 
-Errors should be typed and meaningful at module boundaries.
+Текущие функции:
 
-Examples:
+- отображение списка установленных приложений;
+- фильтрация по состояниям;
+- поиск по названию и bundle identifier;
+- отображение состояния источника AppsTorrent;
+- открытие окна авторизации AppsTorrent;
+- запуск обновления, загрузки и установки;
+- доступ к системным настройкам приложения.
 
-- application metadata unavailable;
-- source unavailable;
-- source parsing failed;
-- version could not be interpreted;
-- matching is ambiguous;
-- download failed;
-- permission denied.
+Сетевые запросы и разбор HTML не должны находиться в `View`.
 
-The UI should turn these into user-facing messages without depending on low-level error strings.
+### `ApplicationRowView`
 
-## 9. Security and trust boundaries
+Отвечает за представление одного приложения и его текущего состояния:
 
-Downloaded artifacts are untrusted input.
+- версия приложения;
+- источник установки;
+- проверка обновления;
+- загрузка;
+- готовность установщика;
+- ожидание действий пользователя;
+- завершение установки.
 
-Luma should not silently execute arbitrary downloaded code. External installer artifacts are handed to macOS rather than executed by Luma. Gatekeeper and quarantine controls must not be bypassed.
+Представление не управляет сетью или файловой системой напрямую. Все действия передаются через замыкания в модель представления.
 
-Any future direct `.app` replacement path must include explicit code-signature validation, quarantine considerations, and a reviewed privileged-operation model before it is enabled for downloaded artifacts.
+## 5. Координатор приложения
 
-## 10. Initial folder structure
+### `ApplicationLibraryViewModel`
 
-The intended source tree is:
+`ApplicationLibraryViewModel` — главный координатор текущего пользовательского сценария. Он помечен `@MainActor` и связывает UI с сервисами.
+
+Он отвечает за:
+
+- запуск сканирования;
+- проверку состояния соединения с AppsTorrent;
+- проверку обновлений;
+- запуск и отмену загрузки;
+- сохранение подготовленного обновления;
+- запуск установки;
+- восстановление незавершённого сценария после запуска приложения;
+- запуск наблюдения за завершением внешней установки;
+- синхронизацию состояния приложения после установки.
+
+Модель представления не должна превращаться в место для парсинга сайта или реализации низкоуровневого HTTP-протокола.
+
+## 6. Модель приложения
+
+### Идентичность
+
+`ApplicationIdentity` использует bundle identifier как основной идентификатор приложения.
+
+Имя приложения используется для отображения и поиска, но не считается уникальным идентификатором.
+
+### Установленное приложение
+
+`InstalledApplication` содержит:
+
+- идентичность;
+- отображаемое имя;
+- установленную версию;
+- путь к `.app`;
+- источник установки: App Store, обычная установка или неизвестный источник.
+
+### Версия
+
+`SoftwareVersion` хранит исходную строку версии.
+
+`VersionComparator` не предполагает, что все программы используют классический SemVer. Версия разбивается на числовые и текстовые компоненты, после чего сравнивается последовательно.
+
+Это позволяет работать с версиями, которые отличаются по формату.
+
+## 7. Сканирование установленных приложений
+
+### `ApplicationScanner`
+
+По умолчанию сканируются:
+
+- `/Applications`;
+- `/System/Applications`.
+
+Для каждого найденного `.app` читаются bundle identifier, имя и `CFBundleShortVersionString`.
+
+Наличие файла `appStoreReceiptURL` используется как текущий признак установки из Mac App Store.
+
+Сканер не выполняет сетевые запросы и не знает ничего об источниках обновлений.
+
+## 8. Абстракция источника обновлений
+
+Ядро использует протокол `UpdateSource`.
+
+```swift
+protocol UpdateSource: Sendable {
+    var name: String { get }
+
+    func checkForUpdate(
+        for application: InstalledApplication
+    ) async throws -> UpdateCandidate?
+}
+```
+
+Сервис проверки обновлений знает только этот протокол.
+
+Добавление нового источника должно означать создание нового адаптера, а не переписывание `UpdateChecker` или пользовательского интерфейса.
+
+## 9. Проверка обновлений
+
+### `UpdateChecker`
+
+`UpdateChecker` получает массив `UpdateSource` и проверяет каждый источник независимо.
+
+Алгоритм текущей реализации:
+
+1. источник возвращает кандидата или сообщает об ошибке;
+2. успешный источник считается обработанным даже при отсутствии обновления;
+3. кандидаты, которые не новее установленной версии, отбрасываются;
+4. из всех подходящих кандидатов выбирается самая новая версия;
+5. если хотя бы один источник успешно обработан и обновления нет, возвращается `upToDate`;
+6. если все источники завершились ошибкой, возвращается `unavailable`.
+
+Таким образом, отказ одного источника не блокирует результаты остальных.
+
+## 10. AppsTorrent
+
+### `AppsTorrentSource`
+
+AppsTorrent является текущим первым адаптером `UpdateSource`.
+
+Он отвечает за:
+
+- поиск подходящих страниц по приложению;
+- использование заранее заданного URL, если он настроен для bundle identifier;
+- загрузку страниц;
+- разбор релизов;
+- отбор подходящего варианта распространения;
+- выбор самой новой версии;
+- возврат вариантов загрузки в доменную модель.
+
+Для одного приложения обрабатывается не более восьми найденных страниц.
+
+Для установленных из Mac App Store приложений предпочтителен вариант `mas`, для обычной установки — `standard`. Если предпочтительный вариант не найден, используется доступный релиз другого варианта.
+
+### Авторизация
+
+`AppsTorrentAuthenticationManager` управляет состоянием входа.
+
+Сессия AppsTorrent работает через постоянное хранилище WebKit. Luma не должна хранить логин, пароль или cookies в исходном коде, конфигурации репозитория или текстовых файлах проекта.
+
+## 11. Загрузка
+
+### `DownloadManager`
+
+Загрузка отделена от проверки обновлений и установки.
+
+Основные свойства текущей реализации:
+
+- `URLSessionDownloadTask` для загрузки;
+- отчёт о прогрессе;
+- отмена загрузки;
+- сохранение результата в выбранный каталог;
+- разрешение повторяющихся имён файлов;
+- использование имени файла, предложенного HTTP-ответом, когда оно доступно;
+- учёт cookies для домена загрузки;
+- обработка перенаправлений с повторным расчётом допустимых cookies.
+
+Cookies передаются только соответствующему хосту или его поддомену. Защищённые cookies не передаются при HTTP.
+
+## 12. Доступ к файловой системе
+
+Luma использует App Sandbox.
+
+Пользовательский доступ к папке загрузок и каталогу установки сохраняется через security-scoped bookmarks.
+
+Для этого используются отдельные хранилища состояния, а не произвольные глобальные пути.
+
+Принцип:
+
+```text
+пользователь выбирает каталог
+          ↓
+получаем security-scoped bookmark
+          ↓
+сохраняем bookmark
+          ↓
+при следующем запуске
+восстанавливаем URL и проверяем актуальность
+```
+
+Это важно для работы песочницы после перезапуска приложения.
+
+## 13. Подготовленное обновление
+
+`PreparedUpdate` описывает уже выбранный артефакт и отделяет этап загрузки от этапа установки.
+
+Поддерживаются типы:
+
+- `.app`;
+- `.dmg`;
+- `.pkg`;
+- внешний установщик.
+
+Пока артефакт не установлен, состояние может быть сохранено как ожидающее обновление.
+
+## 14. Сохранение незавершённого обновления
+
+`PendingUpdateStore` сохраняет данные о незавершённых внешних установках.
+
+Хранятся:
+
+- bundle identifier приложения;
+- ожидаемая версия;
+- путь к загруженному файлу;
+- security-scoped bookmark файла, когда он доступен;
+- признак того, что установщик уже был открыт.
+
+Состояние кодируется в JSON и хранится через `UserDefaults`.
+
+После запуска Luma проверяет наличие файла и сравнивает ожидаемую версию с фактически установленной.
+
+## 15. Установка
+
+### Внешние установщики
+
+Для `.dmg`, `.pkg` и других внешних установщиков Luma проверяет наличие файла и передаёт его macOS через `NSWorkspace`.
+
+После запуска установщика Luma переводит приложение в состояние ожидания действия пользователя.
+
+Luma не считает факт открытия установщика фактом завершения обновления.
+
+### Прямая замена `.app`
+
+Для подготовленного `.app` существует отдельный сценарий прямой замены.
+
+Текущая последовательность:
+
+1. проверка исходного и установленного приложения;
+2. запрос пользовательского разрешения на каталог установки;
+3. проверка, что выбран правильный каталог;
+4. завершение работающего приложения после подтверждения пользователя;
+5. перенос текущего `.app` во временную резервную копию;
+6. перенос нового `.app` на исходное место;
+7. проверка bundle identifier и версии;
+8. восстановление резервной копии при ошибке проверки.
+
+Luma не должна скрыто удалять приложение до появления проверенной новой версии.
+
+### Важное текущее ограничение
+
+Перед прямой заменой загруженного `.app` ещё необходим отдельный слой проверки доверия к артефакту: как минимум проверка подписи и связанные с ней ограничения распространения. Этот этап не следует считать завершённым только потому, что проверены bundle identifier и версия.
+
+## 16. Контроль завершения установки
+
+### `ApplicationInstallationMonitor`
+
+Монитор периодически читает установленную версию приложения.
+
+Текущие параметры по умолчанию:
+
+- интервал проверки — две секунды;
+- максимум — 300 попыток;
+- общий интервал ожидания — около десяти минут.
+
+Установка считается завершённой, когда установленная версия равна или новее ожидаемой.
+
+После этого Luma заново сканирует приложения и удаляет сохранённое состояние ожидающего обновления.
+
+## 17. Состояния пользовательского сценария
+
+Для проверки обновления используются состояния `notChecked`, `checking`, `upToDate`, `updateAvailable`, `unavailable` и `failed`.
+
+Состояние загрузки отдельно описывает этапы:
+
+```text
+не начато
+   ↓
+загрузка
+   ↓
+готово к установке
+   ↓
+открытие установщика
+   ↓
+ожидание пользователя
+   ↓
+установлено
+```
+
+Разделение состояния проверки и состояния загрузки не позволяет смешивать «обновление найдено» и «обновление уже скачано».
+
+## 18. Конкурентность
+
+Проект использует Swift Concurrency.
+
+Основные правила:
+
+- UI и координатор пользовательских действий работают на `MainActor`;
+- сетевые и файловые сервисы, которым это не требуется, изолированы от UI;
+- доменные модели, передаваемые между задачами, помечены `Sendable`, где это необходимо;
+- отмена долгих операций должна доходить до исходной задачи.
+
+Любое новое асинхронное действие нужно проверять на гонки состояния, повторный запуск и отмену.
+
+## 19. Логирование
+
+Диагностические сообщения идут через централизованный `LumaLog`.
+
+В журналах нельзя выводить пароли, токены, cookies и другие секреты.
+
+URL и сетевые данные должны логироваться только настолько подробно, насколько это необходимо для диагностики.
+
+## 20. Тестирование
+
+Тесты сосредоточены на поведении, которое легко сломать изменением реализации:
+
+- сравнение версий;
+- разбор и сопоставление источников;
+- сохранение состояния;
+- жизненный цикл установщика;
+- работа загрузчика и cookies;
+- границы домена cookies;
+- отмена операций.
+
+Критичные чистые функции и сервисы предпочтительнее проверять unit-тестами до изменения UI.
+
+## 21. CI
+
+GitHub Actions выполняет:
+
+- сборку проекта;
+- тесты;
+- Release-архивацию;
+- проверку bundle identifier, версии и иконки;
+- проверку App Sandbox и Hardened Runtime;
+- упаковку ZIP и DMG;
+- проверку содержимого архивов;
+- создание SHA-256 контрольных сумм;
+- загрузку артефактов workflow.
+
+Автоматическая публикация GitHub Release пока намеренно не используется. До завершения основной функциональности CI должен проверять проект, а не выпускать пользовательскую версию.
+
+## 22. Фактическая структура проекта
 
 ```text
 Luma/
 ├── Luma.xcodeproj
-├── App/
-├── Core/
-│   ├── Models/
-│   ├── Services/
-│   └── Utilities/
-├── Sources/
-│   └── AppsTorrent/
-├── Persistence/
-├── UI/
-└── Tests/
+├── Luma/
+│   ├── ContentView.swift
+│   ├── Core/
+│   │   ├── Models/
+│   │   └── Services/
+│   ├── Sources/
+│   │   └── AppsTorrent/
+│   └── UI/
+├── LumaTests/
+├── LumaUITests/
+├── ARCHITECTURE.md
+└── README.md
 ```
 
-The folders are architectural boundaries, not a requirement to create every directory before it is needed.
+Структура файлов может расширяться, но новые компоненты должны сохранять описанные границы ответственности.
 
-## 11. Development strategy
+## 23. Правила расширения
 
-We build from the inside out:
+### Новый источник
 
-1. Repository and project foundation.
-2. Domain models.
-3. Installed-app scanner.
-4. Version engine.
-5. Source abstraction.
-6. AppsTorrent source adapter.
-7. Matching and update detection.
-8. Download manager.
-9. SwiftUI interface.
-10. Installation workflow and post-installation monitoring.
-11. Release hardening, Developer ID signing/notarization, background checks, notifications, and additional sources.
+Создаётся новый тип, реализующий `UpdateSource`. Нельзя добавлять условие по имени конкретного сайта внутрь `UpdateChecker` или `ApplicationLibraryViewModel`.
 
-Each step should leave the project in a runnable state.
+### Новая стратегия установки
+
+Новый сценарий установки должен быть изолирован в установщике или отдельном сервисе. UI должен видеть доменное состояние, а не низкоуровневую реализацию.
+
+### Новое состояние
+
+Если состояние влияет на восстановление после перезапуска, его нужно рассматривать как часть персистентного жизненного цикла, а не только как временное значение SwiftUI.
+
+### Новая работа с файлами
+
+Для sandbox-операций нужно явно определить, откуда получено право доступа и как оно восстанавливается после перезапуска.
+
+## 24. Что считается хорошим изменением
+
+Хорошее изменение для Luma:
+
+```text
+одна понятная задача
+        ↓
+изменение одного слоя
+        ↓
+тест критичного поведения
+        ↓
+CI
+        ↓
+следующая задача
+```
+
+Не следует одновременно менять архитектуру, пользовательский интерфейс, сетевой адаптер и систему хранения без необходимости. Небольшие изолированные изменения легче проверять, откатывать и сопровождать.
