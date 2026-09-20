@@ -63,7 +63,7 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
     ) async throws -> PreparedUpdate {
         let artifactType = classifier.classify(artifact)
         LumaLog.updates.info(
-            "Downloaded artifact: filename=\(artifact.filename, privacy: .public), type=\(artifactType.rawValue, privacy: .public), mime=\(artifact.mimeType ?? "unknown", privacy: .public), bytes=\(artifact.byteCount, privacy: .public), finalURL=\(artifact.finalURL.absoluteString, privacy: .public)"
+            "Downloaded artifact: filename=\(artifact.filename, privacy: .private), type=\(artifactType.rawValue, privacy: .private), mime=\(artifact.mimeType ?? "unknown", privacy: .private), bytes=\(artifact.byteCount, privacy: .private), finalURL=\(artifact.finalURL.absoluteString, privacy: .private)"
         )
 
         if artifactType == .html || artifactType == .unknown {
@@ -99,7 +99,7 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
                     to: destinationDirectory
                 )
                 LumaLog.updates.info(
-                    "Extracted installer disk image from ISO: \(dmgURL.path, privacy: .public)"
+                    "Extracted installer disk image from ISO: \(dmgURL.path, privacy: .private)"
                 )
                 return PreparedUpdate(
                     application: expectedApplication,
@@ -111,7 +111,7 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
                 throw InspectionError.installerNotFound
             } catch {
                 LumaLog.updates.error(
-                    "ISO extraction failed: \(error.localizedDescription, privacy: .public)"
+                    "ISO extraction failed: \(error.localizedDescription, privacy: .private)"
                 )
                 throw InspectionError.extractionFailed
             }
