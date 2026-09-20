@@ -5922,6 +5922,335 @@
           }
         }
       }
+    },
+    "The ISO image does not contain a valid ISO9660 primary volume descriptor.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The ISO image does not contain a valid ISO9660 primary volume descriptor."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISO-образ не содержит корректного основного дескриптора тома ISO9660."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das ISO-Abbild enthält keinen gültigen primären ISO9660-Volumendeskriptor."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’image ISO ne contient pas de descripteur de volume principal ISO9660 valide."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La imagen ISO no contiene un descriptor de volumen principal ISO9660 válido."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISO 映像不包含有效的 ISO9660 主卷描述符。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISOイメージに有効なISO9660プライマリボリュームディスクリプタがありません。"
+          }
+        }
+      }
+    },
+    "The ISO image uses an unsupported logical block size.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The ISO image uses an unsupported logical block size."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISO-образ использует неподдерживаемый размер логического блока."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das ISO-Abbild verwendet eine nicht unterstützte logische Blockgröße."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’image ISO utilise une taille de bloc logique non prise en charge."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La imagen ISO utiliza un tamaño de bloque lógico no compatible."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISO 映像使用了不受支持的逻辑块大小。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISOイメージはサポートされていない論理ブロックサイズを使用しています。"
+          }
+        }
+      }
+    },
+    "The ISO root directory could not be read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The ISO root directory could not be read."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось прочитать корневой каталог ISO."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Stammverzeichnis des ISO-Abbilds konnte nicht gelesen werden."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le répertoire racine de l’ISO n’a pas pu être lu."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer el directorio raíz de la ISO."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取 ISO 根目录。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISOのルートディレクトリを読み取れませんでした。"
+          }
+        }
+      }
+    },
+    "No disk image was found inside the ISO.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No disk image was found inside the ISO."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В ISO не найден образ диска."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im ISO-Abbild wurde kein Disk-Image gefunden."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucune image disque n’a été trouvée dans l’ISO."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró ninguna imagen de disco dentro de la ISO."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISO 中未找到磁盘映像。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISO内にディスクイメージが見つかりません。"
+          }
+        }
+      }
+    },
+    "The ISO contains an invalid directory record.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The ISO contains an invalid directory record."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISO содержит некорректную запись каталога."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das ISO-Abbild enthält einen ungültigen Verzeichniseintrag."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’ISO contient un enregistrement de répertoire invalide."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La ISO contiene un registro de directorio no válido."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISO 包含无效的目录记录。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISOに無効なディレクトリレコードがあります。"
+          }
+        }
+      }
+    },
+    "A file inside the ISO is truncated.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A file inside the ISO is truncated."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл внутри ISO обрезан или повреждён."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Datei im ISO-Abbild ist abgeschnitten."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un fichier dans l’ISO est tronqué."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un archivo dentro de la ISO está truncado."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISO 中的文件已截断。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ISO内のファイルが途中で切り詰められています。"
+          }
+        }
+      }
+    },
+    "Luma could not extract the disk image from the ISO.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luma could not extract the disk image from the ISO."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luma не удалось извлечь образ диска из ISO."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luma konnte das Disk-Image nicht aus dem ISO extrahieren."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luma n’a pas pu extraire l’image disque de l’ISO."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luma no pudo extraer la imagen de disco de la ISO."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luma 无法从 ISO 中提取磁盘映像。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LumaはISOからディスクイメージを抽出できませんでした。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
