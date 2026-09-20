@@ -90,13 +90,17 @@ struct ContentView: View {
                 SettingsLink()
             }
         }
-        .sheet(isPresented: $isAppsTorrentBrowserPresented) {
-            AppsTorrentBrowserView(
-                url: URL(string: "https://appstorrent.ru")!,
-                session: AppsTorrentBrowserSession.shared
-            ) {
-                viewModel.markAppsTorrentLoginCompleted()
-            }
+        .sheet(isPresented: $isAppsTorrentLoginPresented) {
+            AppsTorrentLoginView(
+                session: AppsTorrentBrowserSession.shared,
+                onLoginCompleted: {
+                    viewModel.markAppsTorrentLoginCompleted()
+                    isAppsTorrentLoginPresented = false
+                },
+                onLogout: {
+                    viewModel.markAppsTorrentLoginRequired()
+                }
+            )
         }
         .task {
             await viewModel.load()
@@ -114,7 +118,7 @@ struct ContentView: View {
 
             Section("Sources") {
                 Button {
-                    isAppsTorrentBrowserPresented = true
+                    isAppsTorrentLoginPresented = true
                 } label: {
                     HStack(spacing: 10) {
                         Circle()
@@ -144,7 +148,7 @@ struct ContentView: View {
                         EmptyView()
                     case .signInRequired, .sessionExpired:
                         Button("Sign In") {
-                            isAppsTorrentBrowserPresented = true
+                            isAppsTorrentLoginPresented = true
                         }
                     }
                 }
