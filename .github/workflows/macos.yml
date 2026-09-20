@@ -44,6 +44,8 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build-and-test
     runs-on: macos-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -171,3 +173,24 @@ jobs:
           name: Luma-macOS-unsigned
           path: build/package/
           if-no-files-found: error
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          TAG="v$LUMA_VERSION"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; skipping publication."
+            exit 0
+          fi
+
+          gh release create "$TAG" \\
+            --repo "$GITHUB_REPOSITORY" \\
+            --target "$GITHUB_SHA" \\
+            --title "Luma $LUMA_VERSION" \\
+            --generate-notes \\
+            build/package/Luma-macOS-$LUMA_VERSION-unsigned.dmg \\
+            build/package/Luma-macOS-$LUMA_VERSION-unsigned.zip \\
+            build/package/SHA256SUMS.txt
