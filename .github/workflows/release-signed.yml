@@ -1,0 +1,158 @@
+name: Signed macOS Release
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+
+jobs:
+  signed-release:
+    runs-on: macos-latest
+
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate release secrets
+        env:
+          CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$CERTIFICATE"
+          test -n "$CERTIFICATE_PASSWORD"
+          test -n "$APPLE_TEAM_ID"
+          test -n "$APPLE_ID"
+          test -n "$APPLE_APP_SPECIFIC_PASSWORD"
+
+      - name: Import Developer ID certificate
+        env:
+          CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          KEYCHAIN_PATH="$RUNNER_TEMP/luma-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
+          CERT_PATH="$RUNNER_TEMP/developer-id.p12"
+
+          printf '%s' "$CERTIFICATE" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH"             -k "$KEYCHAIN_PATH"             -P "$CERTIFICATE_PASSWORD"             -T /usr/bin/codesign             -T /usr/bin/security             -T /usr/bin/xcrun
+
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          SIGNING_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk -F '"' '/Developer ID Application:/ {print $2; exit}')"
+          test -n "$SIGNING_IDENTITY"
+          echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+
+      - name: Read release version
+        run: |
+          set -euo pipefail
+          VERSION="$(
+            xcodebuild               -project Luma.xcodeproj               -scheme Luma               -configuration Release               -showBuildSettings |
+              awk -F ' = ' '$1 ~ /MARKETING_VERSION$/ {print $2; exit}'
+          )"
+          test -n "$VERSION"
+          echo "LUMA_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Archive signed release
+        run: |
+          set -euo pipefail
+          rm -rf build
+
+          xcodebuild             -project Luma.xcodeproj             -scheme Luma             -configuration Release             -destination 'generic/platform=macOS'             -archivePath build/Luma.xcarchive             CODE_SIGN_STYLE=Manual             CODE_SIGN_IDENTITY="$SIGNING_IDENTITY"             DEVELOPMENT_TEAM="$APPLE_TEAM_ID"             CODE_SIGNING_REQUIRED=YES             CODE_SIGNING_ALLOWED=YES             archive
+
+      - name: Verify code signature
+        run: |
+          set -euo pipefail
+
+          APP="build/Luma.xcarchive/Products/Applications/Luma.app"
+
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign --display --verbose=4 "$APP" 2>&1 | tee "$RUNNER_TEMP/codesign.txt"
+
+          grep -q "Developer ID Application:" "$RUNNER_TEMP/codesign.txt"
+          grep -q "TeamIdentifier=$APPLE_TEAM_ID" "$RUNNER_TEMP/codesign.txt"
+
+          spctl --assess --type execute --verbose=4 "$APP" || true
+
+      - name: Package ZIP
+        run: |
+          set -euo pipefail
+          mkdir -p build/package
+
+          ditto -c -k --sequesterRsrc --keepParent             build/Luma.xcarchive/Products/Applications/Luma.app             "build/package/Luma-macOS-$LUMA_VERSION.zip"
+
+      - name: Package DMG
+        run: |
+          set -euo pipefail
+
+          hdiutil create             -volname "Luma $LUMA_VERSION"             -srcfolder build/Luma.xcarchive/Products/Applications             -ov             -format UDZO             "build/package/Luma-macOS-$LUMA_VERSION.dmg"
+
+      - name: Notarize DMG
+        run: |
+          set -euo pipefail
+
+          xcrun notarytool submit             "build/package/Luma-macOS-$LUMA_VERSION.dmg"             --apple-id "$APPLE_ID"             --team-id "$APPLE_TEAM_ID"             --password "$APPLE_APP_SPECIFIC_PASSWORD"             --wait
+
+      - name: Staple notarization ticket
+        run: |
+          set -euo pipefail
+
+          xcrun stapler staple             "build/package/Luma-macOS-$LUMA_VERSION.dmg"
+
+          xcrun stapler validate             "build/package/Luma-macOS-$LUMA_VERSION.dmg"
+
+      - name: Validate notarized release
+        run: |
+          set -euo pipefail
+
+          DMG="build/package/Luma-macOS-$LUMA_VERSION.dmg"
+          ZIP="build/package/Luma-macOS-$LUMA_VERSION.zip"
+
+          test -s "$DMG"
+          test -s "$ZIP"
+
+          xcrun stapler validate "$DMG"
+          spctl --assess --type open --context context:primary-signature --verbose=4 "$DMG" || true
+
+          MOUNT_POINT="$RUNNER_TEMP/luma-signed-dmg"
+          mkdir -p "$MOUNT_POINT"
+          hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$MOUNT_POINT"
+          trap 'hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 || true' EXIT
+
+          test -d "$MOUNT_POINT/Luma.app"
+          codesign --verify --deep --strict --verbose=2 "$MOUNT_POINT/Luma.app"
+
+          hdiutil detach "$MOUNT_POINT"
+          trap - EXIT
+
+      - name: Write artifact checksums
+        run: |
+          set -euo pipefail
+          cd build/package
+          shasum -a 256 * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload signed release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Luma-macOS-signed
+          path: build/package/
+          if-no-files-found: error
+
+      - name: Cleanup signing keychain
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/luma-signing.keychain-db" || true
