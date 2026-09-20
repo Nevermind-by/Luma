@@ -143,6 +143,8 @@ struct ApplicationRowView: View {
                 onDownload()
             } label: {
                 Label("Download Update", systemImage: "arrow.down.circle")
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -184,8 +186,12 @@ struct ApplicationRowView: View {
                     .frame(maxWidth: 320, alignment: .trailing)
 
                 HStack(spacing: 6) {
-                    Button("Open Installer") {
+                    Button {
                         onInstall()
+                    } label: {
+                        Text("Open Installer")
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.85)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
@@ -223,8 +229,12 @@ struct ApplicationRowView: View {
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 6) {
-                    Button("Open Installer Again") {
+                    Button {
                         onReopenInstaller()
+                    } label: {
+                        Text("Open Installer Again")
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.85)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
