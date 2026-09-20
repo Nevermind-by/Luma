@@ -10,7 +10,7 @@ struct DownloadSettingsView: View {
             Section("Updates") {
                 LabeledContent("Download location") {
                     VStack(alignment: .trailing, spacing: 4) {
-                        Text(directoryURL?.path ?? defaultDownloadsPath)
+                        Text(directoryURL?.path ?? String(localized: "Downloads"))
                             .font(.callout.monospaced())
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
@@ -35,18 +35,14 @@ struct DownloadSettingsView: View {
         }
     }
 
-    private var defaultDownloadsPath: String {
-        FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?.path ?? "Downloads"
-    }
-
     private func chooseDirectory() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.canCreateDirectories = true
-        panel.prompt = "Choose"
-        panel.message = "Choose where Luma should save future updates."
+        panel.prompt = String(localized: "Choose")
+        panel.message = String(localized: "Choose where Luma should save future updates.")
 
         guard panel.runModal() == .OK, let url = panel.url else {
             return
