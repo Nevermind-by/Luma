@@ -14,7 +14,7 @@ struct UpdateArtifactInspectorTests {
         let archiveURL = try makeZipArchive(for: appURL, in: root)
         let artifact = makeArtifact(for: archiveURL)
 
-        let prepared = try await UpdateArtifactInspector().inspect(
+        let prepared = try await UpdateArtifactInspector(codeSignatureVerifier: StubCodeSignatureVerifier()).inspect(
             artifact: artifact,
             expectedApplication: ApplicationIdentity(bundleIdentifier: "com.example.fixture"),
             expectedVersion: SoftwareVersion("2.0.0")
@@ -41,7 +41,7 @@ struct UpdateArtifactInspectorTests {
         let artifact = makeArtifact(for: archiveURL)
 
         do {
-            _ = try await UpdateArtifactInspector().inspect(
+            _ = try await UpdateArtifactInspector(codeSignatureVerifier: StubCodeSignatureVerifier()).inspect(
                 artifact: artifact,
                 expectedApplication: ApplicationIdentity(bundleIdentifier: "com.example.fixture"),
                 expectedVersion: SoftwareVersion("3.0.0")
@@ -70,7 +70,7 @@ struct UpdateArtifactInspectorTests {
             byteCount: 4
         )
 
-        let prepared = try await UpdateArtifactInspector().inspect(
+        let prepared = try await UpdateArtifactInspector(codeSignatureVerifier: StubCodeSignatureVerifier()).inspect(
             artifact: artifact,
             expectedApplication: ApplicationIdentity(bundleIdentifier: "com.example.fixture"),
             expectedVersion: SoftwareVersion("2.0.0")
@@ -125,5 +125,14 @@ struct UpdateArtifactInspectorTests {
         try process.run()
         process.waitUntilExit()
         #expect(process.terminationStatus == 0)
+    }
+}
+
+private struct StubCodeSignatureVerifier: CodeSignatureVerifying {
+    var isValid = true
+
+    func verifyApplication(at url: URL) -> Bool {
+        _ = url
+        return isValid
     }
 }
