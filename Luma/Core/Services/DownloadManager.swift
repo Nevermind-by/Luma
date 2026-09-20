@@ -23,15 +23,15 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         var errorDescription: String? {
             switch self {
             case .unsupportedDownloadOption:
-                return "The selected update does not provide a direct download."
+                return String(localized: "The selected update does not provide a direct download.")
             case .invalidDestination:
-                return "The selected download folder is not available."
+                return String(localized: "The selected download folder is not available.")
             case .invalidResponse(let statusCode):
-                return "The download server returned HTTP status \(statusCode)."
+                return String(localized: "The download server returned HTTP status \(statusCode).")
             case .downloadFailed:
-                return "The update download failed."
+                return String(localized: "The update download failed.")
             case .cancelled:
-                return "The download was cancelled."
+                return String(localized: "The download was cancelled.")
             }
         }
     }
