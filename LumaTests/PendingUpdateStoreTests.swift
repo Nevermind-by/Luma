@@ -55,6 +55,32 @@ struct PendingUpdateStoreTests {
         #expect(store.pending(for: secondApplication)?.version == "2.0.0")
     }
 
+
+
+    @Test
+    func failsClosedWhenStoredSecurityScopedBookmarkCannotBeResolved() throws {
+        let suiteName = "LumaTests.PendingUpdateStore.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = PendingUpdateStore(defaults: defaults)
+        let application = ApplicationIdentity(bundleIdentifier: "com.example.invalid-bookmark")
+        let update = PendingExternalUpdate(
+            bundleIdentifier: application.bundleIdentifier,
+            version: "2.0.0",
+            fileURL: URL(fileURLWithPath: "/Users/test/Downloads/Fixture.dmg"),
+            fileBookmarkData: Data([0x01, 0x02, 0x03])
+        )
+
+        let encoded = try JSONEncoder().encode([
+            application.bundleIdentifier: update
+        ])
+        defaults.set(encoded, forKey: "Luma.pendingExternalUpdates")
+
+        #expect(store.resolvedFileURL(for: application) == nil)
+        #expect(store.beginFileAccess(for: application) == nil)
+    }
+
     @Test
     func persistsThatExternalInstallerWasOpened() {
         let suiteName = "LumaTests.PendingUpdateStore.\(UUID().uuidString)"
