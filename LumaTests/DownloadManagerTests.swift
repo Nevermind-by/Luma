@@ -48,6 +48,24 @@ struct DownloadManagerTests {
     }
 
     @Test
+    func rejectsSimilarSuffixHosts() throws {
+        let cookie = try HTTPCookie(properties: [
+            .domain: ".appstorrent.ru",
+            .path: "/",
+            .name: "session",
+            .value: "session",
+            .secure: "TRUE"
+        ]).unwrap()
+
+        let result = DownloadManager.matchingCookies(
+            [cookie],
+            for: URL(string: "https://notappstorrent.ru/installer.dmg")!
+        )
+
+        #expect(result.isEmpty)
+    }
+
+    @Test
     func rejectsSecureCookiesForHTTPDownloads() throws {
         let cookie = try HTTPCookie(properties: [
             .domain: "example.com",
