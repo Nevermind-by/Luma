@@ -41,6 +41,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         let originalURL: URL
         let requestedFilename: String
         let destinationDirectory: URL
+        let cookies: [HTTPCookie]
         let continuation: CheckedContinuation<DownloadedArtifact, Error>
         let progress: @Sendable (DownloadProgress) -> Void
     }
@@ -83,8 +84,9 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
             forHTTPHeaderField: "User-Agent"
         )
         request.setValue("application/octet-stream,*/*;q=0.8", forHTTPHeaderField: "Accept")
-        if !cookies.isEmpty {
-            let fields = HTTPCookie.requestHeaderFields(with: cookies)
+        let requestCookies = Self.matchingCookies(cookies, for: option.url)
+        if !requestCookies.isEmpty {
+            let fields = HTTPCookie.requestHeaderFields(with: requestCookies)
             request.setValue(fields["Cookie"], forHTTPHeaderField: "Cookie")
         }
 
@@ -96,6 +98,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
                 originalURL: option.url,
                 requestedFilename: requestedFilename,
                 destinationDirectory: directory,
+                cookies: cookies,
                 continuation: continuation,
                 progress: progress
             )
@@ -119,6 +122,28 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         cancelledJob.task.cancel()
         LumaLog.appsTorrent.info("Download cancelled: \(url.absoluteString, privacy: .public)")
         cancelledJob.continuation.resume(throwing: DownloadError.cancelled)
+    }
+
+    static func matchingCookies(_ cookies: [HTTPCookie], for url: URL) -> [HTTPCookie] {
+        guard let host = url.host?.lowercased() else { return [] }
+        let now = Date()
+
+        return cookies.filter { cookie in
+            guard !cookie.isExpired(at: now) else { return false }
+
+            let domain = cookie.domain
+                .lowercased()
+                .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+
+            let hostMatches = host == domain || host.hasSuffix(".(domain)")
+            guard hostMatches else { return false }
+
+            if cookie.isSecure && url.scheme?.lowercased() != "https" {
+                return false
+            }
+
+            return true
+        }
     }
 
     private func sanitizedFilename(from url: URL) -> String {
@@ -167,6 +192,31 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         activeJob?.progress(
             DownloadProgress(bytesWritten: totalBytesWritten, totalBytes: total)
         )
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest) -> Void
+    ) {
+        guard let activeJob = job(for: task.taskIdentifier),
+              let destinationURL = request.url else {
+            completionHandler(request)
+            return
+        }
+
+        var redirectedRequest = request
+        redirectedRequest.setValue(nil, forHTTPHeaderField: "Cookie")
+
+        let redirectedCookies = Self.matchingCookies(activeJob.cookies, for: destinationURL)
+        if !redirectedCookies.isEmpty {
+            let fields = HTTPCookie.requestHeaderFields(with: redirectedCookies)
+            redirectedRequest.setValue(fields["Cookie"], forHTTPHeaderField: "Cookie")
+        }
+
+        completionHandler(redirectedRequest)
     }
 
     func urlSession(
@@ -244,5 +294,12 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         lock.lock()
         defer { lock.unlock() }
         return jobs.removeValue(forKey: taskIdentifier)
+    }
+}
+
+private extension HTTPCookie {
+    func isExpired(at date: Date) -> Bool {
+        guard let expiresDate else { return false }
+        return expiresDate <= date
     }
 }
