@@ -6,7 +6,7 @@ struct CodeSignatureVerifierTests {
     @Test
     func rejectsUnsignedApplicationBundle() throws {
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("LumaCodeSignatureTest-(UUID().uuidString)")
+            .appendingPathComponent("LumaCodeSignatureTest-\(UUID().uuidString)")
         let appURL = root.appendingPathComponent("Fixture.app", isDirectory: true)
         let contentsURL = appURL.appendingPathComponent("Contents", isDirectory: true)
 
