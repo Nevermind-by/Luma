@@ -1,44 +1,48 @@
-# Security
+# Безопасность
 
-## Trust boundaries
+Luma работает с загруженными файлами, внешними источниками обновлений и доступом к локальной файловой системе. Поэтому безопасность является частью архитектуры, а не этапом после разработки.
 
-Luma interacts with three kinds of untrusted external data:
+## Сообщение об уязвимости
 
-1. Web content from update sources.
-2. Downloaded installer artifacts.
-3. Application metadata discovered on the local Mac.
+Если вы обнаружили потенциальную уязвимость, не публикуйте подробности в открытом Issue до того, как проблема будет рассмотрена.
 
-Network access and HTML parsing remain inside source-specific adapters. UI code does not own network or parsing concerns.
+Для первичного сообщения используйте контакт сопровождающего проекта, указанный в публичном профиле GitHub автора.
 
-## AppsTorrent session
+В сообщении желательно указать:
 
-AppsTorrent authentication is handled through the native WebKit session. Credentials, cookies, and session tokens must not be committed, logged, or copied into ordinary application settings.
+- краткое описание проблемы;
+- затронутую версию;
+- последовательность действий для воспроизведения;
+- ожидаемый и фактический результат;
+- возможное влияние;
+- подтверждающие материалы, если они есть.
 
-Persistent WebKit website data is used so a user can keep an authenticated browser session between launches.
+## Модель доверия
 
-## Downloaded artifacts
+Загруженные артефакты считаются недоверенными.
 
-Downloaded installers are treated as untrusted. Luma may save them and open them through macOS Launch Services, but it must not silently execute downloaded code.
+Luma не должна:
 
-Luma must not:
+- выполнять произвольный загруженный код скрытно;
+- отключать Gatekeeper;
+- удалять quarantine-метаданные ради запуска файла;
+- сохранять пароли, токены или cookies в исходном коде;
+- получать больше файловых разрешений, чем требуется сценарию.
 
-- disable Gatekeeper;
-- disable or remove quarantine attributes as a shortcut around macOS security;
-- delete an existing application automatically to make an external installer succeed;
-- install privileged components without an explicit, reviewed design.
+Внешние `.dmg`, `.pkg` и другие установщики передаются macOS через системный механизм открытия.
 
-## Sandboxing
+Прямая замена `.app` дополнительно требует проверки доверия к загруженному артефакту. Эта область ещё находится в разработке.
 
-The app uses App Sandbox with only the file/network capabilities currently required by the implementation:
+## Секреты
 
-- network client access;
-- Downloads folder read/write access;
-- user-selected file read/write access.
+Секреты CI и Apple Developer не должны попадать в репозиторий. Для CI должны использоваться секреты GitHub Actions и временное окружение.
 
-When a new capability is needed, prefer the narrowest entitlement that satisfies the user-visible feature.
+## Песочница
 
-## Release security
+Приложение работает с App Sandbox. При добавлении новой функции следует запрашивать минимально необходимое разрешение и сохранять пользовательский доступ через поддерживаемые системой механизмы.
 
-The CI release archive is currently unsigned by design. A distributable release must add proper Apple code signing and notarization before publication. The hardened runtime is already enabled in the app target and is validated by CI.
+## Безопасность релиза
 
-Security-related changes should include tests or CI validation when practical.
+Текущая CI-сборка намеренно не подписывается. Подписывание и нотариальная проверка понадобятся перед публичным распространением готовой версии.
+
+Все изменения, затрагивающие безопасность, по возможности должны сопровождаться тестом или отдельной проверкой CI.
