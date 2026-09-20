@@ -1,4 +1,4 @@
-name: Signed macOS Release
+name: Подписанный релиз macOS
 
 permissions:
   contents: read
@@ -16,10 +16,10 @@ jobs:
       APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
 
     steps:
-      - name: Checkout
+      - name: Получить исходный код
         uses: actions/checkout@v4
 
-      - name: Validate release secrets
+      - name: Проверить секреты релиза
         env:
           CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -31,7 +31,7 @@ jobs:
           test -n "$APPLE_ID"
           test -n "$APPLE_APP_SPECIFIC_PASSWORD"
 
-      - name: Import Developer ID certificate
+      - name: Импортировать сертификат Developer ID
         env:
           CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -56,7 +56,7 @@ jobs:
           test -n "$SIGNING_IDENTITY"
           echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
 
-      - name: Read release version
+      - name: Определить версию
         run: |
           set -euo pipefail
           VERSION="$(
@@ -66,14 +66,14 @@ jobs:
           test -n "$VERSION"
           echo "LUMA_VERSION=$VERSION" >> "$GITHUB_ENV"
 
-      - name: Archive signed release
+      - name: Создать подписанный архив
         run: |
           set -euo pipefail
           rm -rf build
 
           xcodebuild             -project Luma.xcodeproj             -scheme Luma             -configuration Release             -destination 'generic/platform=macOS'             -archivePath build/Luma.xcarchive             CODE_SIGN_STYLE=Manual             CODE_SIGN_IDENTITY="$SIGNING_IDENTITY"             DEVELOPMENT_TEAM="$APPLE_TEAM_ID"             CODE_SIGNING_REQUIRED=YES             CODE_SIGNING_ALLOWED=YES             archive
 
-      - name: Verify code signature
+      - name: Проверить подпись
         run: |
           set -euo pipefail
 
@@ -87,26 +87,26 @@ jobs:
 
           spctl --assess --type execute --verbose=4 "$APP" || true
 
-      - name: Package ZIP
+      - name: Создать ZIP
         run: |
           set -euo pipefail
           mkdir -p build/package
 
           ditto -c -k --sequesterRsrc --keepParent             build/Luma.xcarchive/Products/Applications/Luma.app             "build/package/Luma-macOS-$LUMA_VERSION.zip"
 
-      - name: Package DMG
+      - name: Создать DMG
         run: |
           set -euo pipefail
 
           hdiutil create             -volname "Luma $LUMA_VERSION"             -srcfolder build/Luma.xcarchive/Products/Applications             -ov             -format UDZO             "build/package/Luma-macOS-$LUMA_VERSION.dmg"
 
-      - name: Notarize DMG
+      - name: Нотариально проверить DMG
         run: |
           set -euo pipefail
 
           xcrun notarytool submit             "build/package/Luma-macOS-$LUMA_VERSION.dmg"             --apple-id "$APPLE_ID"             --team-id "$APPLE_TEAM_ID"             --password "$APPLE_APP_SPECIFIC_PASSWORD"             --wait
 
-      - name: Staple notarization ticket
+      - name: Прикрепить билет нотариальной проверки
         run: |
           set -euo pipefail
 
@@ -114,7 +114,7 @@ jobs:
 
           xcrun stapler validate             "build/package/Luma-macOS-$LUMA_VERSION.dmg"
 
-      - name: Validate notarized release
+      - name: Проверить нотариально заверенный релиз
         run: |
           set -euo pipefail
 
@@ -138,21 +138,21 @@ jobs:
           hdiutil detach "$MOUNT_POINT"
           trap - EXIT
 
-      - name: Write artifact checksums
+      - name: Создать контрольные суммы
         run: |
           set -euo pipefail
           cd build/package
           shasum -a 256 * > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
-      - name: Upload signed release artifacts
+      - name: Загрузить подписанные артефакты
         uses: actions/upload-artifact@v4
         with:
           name: Luma-macOS-signed
           path: build/package/
           if-no-files-found: error
 
-      - name: Cleanup signing keychain
+      - name: Удалить временную цепочку ключей
         if: always()
         run: |
           security delete-keychain "$RUNNER_TEMP/luma-signing.keychain-db" || true
