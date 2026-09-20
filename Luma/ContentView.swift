@@ -9,7 +9,7 @@ struct ContentView: View {
     }
 
     @StateObject private var viewModel = ApplicationLibraryViewModel()
-    @State private var isAppsTorrentBrowserPresented = false
+    @State private var isAppsTorrentLoginPresented = false
     @State private var searchText = ""
     @State private var selection: SidebarSelection = .all
 
