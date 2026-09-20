@@ -51,13 +51,13 @@ struct AppsTorrentBrowserView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .help("Reload current page")
+                .accessibilityIdentifier("reload-browser-button")
 
                 Button("Continue") {
                     onComplete()
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
             }
             .padding(.horizontal)
             .padding(.vertical, 10)
@@ -102,16 +102,25 @@ struct AppsTorrentBrowserView: View {
                 .foregroundStyle(.secondary)
 
         case .loading(let loadedURL):
-            Label(loadedURL.host ?? "Loading…", systemImage: "arrow.triangle.2.circlepath")
-                .foregroundStyle(.secondary)
+            hostStatusLabel(
+                loadedURL,
+                fallback: "Loading…",
+                systemImage: "arrow.triangle.2.circlepath"
+            )
 
         case .ready(let loadedURL):
-            Label(loadedURL.host ?? "Ready", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.secondary)
+            hostStatusLabel(
+                loadedURL,
+                fallback: "Ready",
+                systemImage: "checkmark.circle.fill"
+            )
 
         case .downloading(let downloadURL):
-            Label(downloadURL.host ?? "Downloading…", systemImage: "arrow.down.circle")
-                .foregroundStyle(.secondary)
+            hostStatusLabel(
+                downloadURL,
+                fallback: "Downloading…",
+                systemImage: "arrow.down.circle"
+            )
 
         case .failed(let message):
             Label("Navigation failed", systemImage: "exclamationmark.triangle.fill")
@@ -123,6 +132,18 @@ struct AppsTorrentBrowserView: View {
                 .foregroundStyle(.red)
                 .help("The WebContent process terminated. Reload the page or try again.")
         }
+    }
+
+    private func hostStatusLabel(
+        _ url: URL,
+        fallback: LocalizedStringKey,
+        systemImage: String
+    ) -> some View {
+        if let host = url.host {
+            return AnyView(Label(host, systemImage: systemImage).foregroundStyle(.secondary))
+        }
+
+        return AnyView(Label(fallback, systemImage: systemImage).foregroundStyle(.secondary))
     }
 }
 
