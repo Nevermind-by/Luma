@@ -45,7 +45,7 @@ struct ArtifactClassifierTests {
 
     @Test
     func detectsISO9660ByPrimaryVolumeDescriptor() throws {
-        var data = Data(repeating: 0, count: 32_774)
+        var data = Data(repeating: 0, count: 32_768 + 190)
         data[32_768] = 1
         data[32_769] = 0x43
         data[32_770] = 0x44
