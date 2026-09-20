@@ -222,9 +222,20 @@ final class ApplicationLibraryViewModel: ObservableObject {
         downloadStates[application.id] = .installing(preparedUpdate.version)
 
         do {
-            let fileAccess = pendingUpdateStore.beginFileAccess(for: application.id)
-            let installerUpdate = fileAccess.map { preparedUpdate.replacingArtifactURL(with: $0.url) } ?? preparedUpdate
-            defer { fileAccess?.stop() }
+            let installerUpdate: PreparedUpdate
+
+            if case .externalInstaller = preparedUpdate.payload,
+               let fileAccess = pendingUpdateStore.beginFileAccess(for: application.id) {
+                defer { fileAccess.stop() }
+                let artifact = downloadedArtifact(for: fileAccess.url)
+                installerUpdate = try await artifactInspector.inspect(
+                    artifact: artifact,
+                    expectedApplication: application.id,
+                    expectedVersion: preparedUpdate.version
+                )
+            } else {
+                installerUpdate = preparedUpdate
+            }
 
             let result = try await applicationInstaller.install(installerUpdate, replacing: application)
             switch result {
@@ -254,20 +265,30 @@ final class ApplicationLibraryViewModel: ObservableObject {
             return
         }
 
-        let preparedUpdate = PreparedUpdate(
-            application: application.id,
-            version: version,
-            artifactURL: resolvedURL,
-            payload: .externalInstaller(resolvedURL)
-        )
-
         do {
             pendingUpdateStore.markInstallerOpened(for: application.id)
-            let fileAccess = pendingUpdateStore.beginFileAccess(for: application.id)
-            let installerUpdate = fileAccess.map { preparedUpdate.replacingArtifactURL(with: $0.url) } ?? preparedUpdate
-            defer { fileAccess?.stop() }
-
             downloadStates[application.id] = .installing(version)
+
+            let fileAccess = pendingUpdateStore.beginFileAccess(for: application.id)
+            let installerUpdate: PreparedUpdate
+
+            if let fileAccess {
+                defer { fileAccess.stop() }
+                let artifact = downloadedArtifact(for: fileAccess.url)
+                installerUpdate = try await artifactInspector.inspect(
+                    artifact: artifact,
+                    expectedApplication: application.id,
+                    expectedVersion: version
+                )
+            } else {
+                installerUpdate = PreparedUpdate(
+                    application: application.id,
+                    version: version,
+                    artifactURL: resolvedURL,
+                    payload: .externalInstaller(resolvedURL)
+                )
+            }
+
             let result = try await applicationInstaller.install(installerUpdate, replacing: application)
             switch result {
             case .completed, .userActionRequired:
@@ -374,6 +395,20 @@ final class ApplicationLibraryViewModel: ObservableObject {
         } else {
             downloadStates[application.id] = preparedUpdateState(from: pending, fileURL: resolvedURL, for: application)
         }
+    }
+
+    private func downloadedArtifact(for fileURL: URL) -> DownloadedArtifact {
+        let resourceValues = try? fileURL.resourceValues(forKeys: [.fileSizeKey])
+        let byteCount = Int64(resourceValues?.fileSize ?? 0)
+
+        return DownloadedArtifact(
+            originalURL: fileURL,
+            finalURL: fileURL,
+            fileURL: fileURL,
+            filename: fileURL.lastPathComponent,
+            mimeType: nil,
+            byteCount: byteCount
+        )
     }
 
     private func preparedUpdateState(
