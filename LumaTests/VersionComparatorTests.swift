@@ -17,4 +17,9 @@ struct VersionComparatorTests {
     @Test func ignoresSeparators() {
         #expect(comparator.compare(SoftwareVersion("1.2.3"), SoftwareVersion("1-2-3")) == .orderedSame)
     }
+
+    @Test func comparesTextSuffixesDeterministically() {
+        #expect(comparator.compare(SoftwareVersion("1.0-beta"), SoftwareVersion("1.0-rc")) == .orderedAscending)
+        #expect(comparator.compare(SoftwareVersion("1.0-RC"), SoftwareVersion("1.0-rc")) == .orderedSame)
+    }
 }

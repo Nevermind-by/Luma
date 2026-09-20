@@ -23,9 +23,7 @@ nonisolated struct VersionComparator: Sendable {
                 }
             case let (.text(a), .text(b)):
                 if a != b {
-                    return a.localizedStandardCompare(b) == .orderedAscending
-                        ? .orderedAscending
-                        : .orderedDescending
+                    return a < b ? .orderedAscending : .orderedDescending
                 }
             case (.number, .text):
                 return .orderedDescending

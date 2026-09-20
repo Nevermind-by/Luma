@@ -23,13 +23,37 @@ struct ArtifactClassifierTests {
     }
 
     @Test
+    func detectsISO9660With1024ByteLogicalBlocks() throws {
+        let blockSize = 1024
+        var data = Data(repeating: 0, count: blockSize * 17 + 134)
+        let descriptorOffset = 16 * blockSize
+        data[descriptorOffset] = 1
+        data.replaceSubrange(
+            (descriptorOffset + 1)..<(descriptorOffset + 6),
+            with: Data("CD001".utf8)
+        )
+        data[descriptorOffset + 6] = 1
+        data[descriptorOffset + 128] = UInt8(blockSize & 0xFF)
+        data[descriptorOffset + 129] = UInt8((blockSize >> 8) & 0xFF)
+
+        let url = try makeTemporaryFile(named: "download.bin", contents: data)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let artifact = makeArtifact(for: url)
+        #expect(ArtifactClassifier().classify(artifact) == .iso)
+    }
+
+    @Test
     func detectsISO9660ByPrimaryVolumeDescriptor() throws {
-        var data = Data(repeating: 0, count: 32_774)
+        var data = Data(repeating: 0, count: 32_768 + 190)
+        data[32_768] = 1
         data[32_769] = 0x43
         data[32_770] = 0x44
         data[32_771] = 0x30
         data[32_772] = 0x30
         data[32_773] = 0x31
+        data[32_896] = 0
+        data[32_897] = 8
         let url = try makeTemporaryFile(named: "download.bin", contents: data)
         defer { try? FileManager.default.removeItem(at: url) }
 

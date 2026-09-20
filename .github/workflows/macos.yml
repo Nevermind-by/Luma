@@ -37,6 +37,7 @@ jobs:
             -project Luma.xcodeproj \
             -scheme Luma \
             -destination 'platform=macOS' \
+            -parallel-testing-enabled NO \
             test
 
   package-release:

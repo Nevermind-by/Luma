@@ -4,7 +4,7 @@ import Testing
 
 struct ISOImageExtractorTests {
     @Test
-    func extractsFirstDMGFromIso9660Image() throws {
+    func extractsFirstDMGFrom1024ByteBlockIso9660Image() throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory.appendingPathComponent("LumaISOTest-\(UUID().uuidString)")
         let output = root.appendingPathComponent("Output", isDirectory: true)
@@ -12,8 +12,8 @@ struct ISOImageExtractorTests {
         try fileManager.createDirectory(at: output, withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: root) }
 
-        let dmgBytes = Data("fixture-dmg".utf8)
-        try makeISOImage(at: isoURL, dmgBytes: dmgBytes)
+        let dmgBytes = Data("fixture-dmg-1024".utf8)
+        try makeISOImage(at: isoURL, dmgBytes: dmgBytes, blockSize: 1024)
 
         let extractedURL = try ISOImageExtractor().extractFirstDiskImage(
             from: isoURL,
@@ -24,8 +24,28 @@ struct ISOImageExtractorTests {
         #expect(try Data(contentsOf: extractedURL) == dmgBytes)
     }
 
-    private func makeISOImage(at url: URL, dmgBytes: Data) throws {
-        let blockSize = 2048
+    @Test
+    func extractsFirstDMGFromIso9660Image() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent("LumaISOTest-\(UUID().uuidString)")
+        let output = root.appendingPathComponent("Output", isDirectory: true)
+        let isoURL = root.appendingPathComponent("Fixture.iso")
+        try fileManager.createDirectory(at: output, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+
+        let dmgBytes = Data("fixture-dmg".utf8)
+        try makeISOImage(at: isoURL, dmgBytes: dmgBytes, blockSize: 2048)
+
+        let extractedURL = try ISOImageExtractor().extractFirstDiskImage(
+            from: isoURL,
+            to: output
+        )
+
+        #expect(extractedURL.lastPathComponent == "Fixture.dmg")
+        #expect(try Data(contentsOf: extractedURL) == dmgBytes)
+    }
+
+    private func makeISOImage(at url: URL, dmgBytes: Data, blockSize: Int) throws {
         let rootExtent = 20
         let fileExtent = 21
         let fileName = Data("Fixture.dmg;1".utf8)
