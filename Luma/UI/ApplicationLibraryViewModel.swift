@@ -22,6 +22,11 @@ final class ApplicationLibraryViewModel: ObservableObject {
     private let pendingUpdateStore: PendingUpdateStore
     private let installationMonitor: ApplicationInstallationMonitor
     private var externalInstallationWatchTasks: [ApplicationIdentity: Task<Void, Never>] = [:]
+    private lazy var downloadProgressReporter = DownloadProgressReporter { [weak self] application, progress in
+        Task { @MainActor [weak self] in
+            self?.downloadStates[application] = .downloading(progress)
+        }
+    }
 
     init(
         scanner: any ApplicationScanning = ApplicationScanner(),
@@ -171,11 +176,10 @@ final class ApplicationLibraryViewModel: ObservableObject {
                 option,
                 to: destinationDirectory,
                 cookies: cookies
-            ) { [weak self] progress in
-                Task { @MainActor [weak self] in
-                    self?.downloadStates[application.id] = .downloading(progress)
-                }
+            ) { [downloadProgressReporter] progress in
+                downloadProgressReporter.report(progress, for: application.id)
             }
+            downloadProgressReporter.finish(for: application.id)
 
             let preparedUpdate: PreparedUpdate
             do {
