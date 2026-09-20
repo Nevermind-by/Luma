@@ -19,33 +19,31 @@ nonisolated struct ApplicationUpdateCoordinator: ApplicationUpdateCoordinating {
     func checkForUpdates(
         for applications: [InstalledApplication]
     ) async -> [ApplicationIdentity: UpdateStatus] {
+        guard !applications.isEmpty else { return [:] }
+
         var results: [ApplicationIdentity: UpdateStatus] = [:]
-        var pending = Array(applications.enumerated())
+        results.reserveCapacity(applications.count)
 
-        while !pending.isEmpty {
-            let batch = Array(pending.prefix(maxConcurrentChecks))
-            pending.removeFirst(batch.count)
+        await withTaskGroup(of: (ApplicationIdentity, UpdateStatus).self) { group in
+            var iterator = applications.makeIterator()
 
-            let batchResults = await withTaskGroup(
-                of: (ApplicationIdentity, UpdateStatus).self,
-                returning: [(ApplicationIdentity, UpdateStatus)].self
-            ) { group in
-                for (_, application) in batch {
+            for _ in 0..<maxConcurrentChecks {
+                guard let application = iterator.next() else { break }
+                group.addTask {
+                    let status = await checker.check(for: application)
+                    return (application.id, status)
+                }
+            }
+
+            while let result = await group.next() {
+                results[result.0] = result.1
+
+                if let application = iterator.next() {
                     group.addTask {
                         let status = await checker.check(for: application)
                         return (application.id, status)
                     }
                 }
-
-                var completed: [(ApplicationIdentity, UpdateStatus)] = []
-                for await result in group {
-                    completed.append(result)
-                }
-                return completed
-            }
-
-            for (identity, status) in batchResults {
-                results[identity] = status
             }
         }
 
