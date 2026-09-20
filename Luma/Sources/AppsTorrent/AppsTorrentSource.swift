@@ -29,25 +29,25 @@ nonisolated struct AppsTorrentSource: UpdateSource {
     }
 
     func checkForUpdate(for application: InstalledApplication) async throws -> UpdateCandidate? {
-        LumaLog.appsTorrent.info("Checking \(application.name, privacy: .public) version \(application.version.rawValue, privacy: .public), installationSource=\(installationSourceDescription(application.installationSource), privacy: .public)")
+        LumaLog.appsTorrent.info("Checking \(application.name, privacy: .private) version \(application.version.rawValue, privacy: .private), installationSource=\(installationSourceDescription(application.installationSource), privacy: .private)")
 
         let pageURLs = try await pageURLs(for: application)
-        LumaLog.appsTorrent.info("Resolved \(pageURLs.count, privacy: .public) AppsTorrent candidate pages for \(application.name, privacy: .public)")
+        LumaLog.appsTorrent.info("Resolved \(pageURLs.count, privacy: .private) AppsTorrent candidate pages for \(application.name, privacy: .private)")
 
         var releases: [AppsTorrentRelease] = []
         var firstPageError: Error?
 
         for (index, pageURL) in pageURLs.prefix(maxCandidatePages).enumerated() {
             do {
-                LumaLog.appsTorrent.info("Fetching candidate page \(index + 1, privacy: .public): \(pageURL.absoluteString, privacy: .public)")
+                LumaLog.appsTorrent.info("Fetching candidate page \(index + 1, privacy: .private): \(pageURL.absoluteString, privacy: .private)")
                 let html = try await pageProvider.fetchPage(at: pageURL)
                 let release = try parser.parse(html: html, pageURL: pageURL)
                 releases.append(release)
                 let optionKinds = release.downloadOptions.map(\.kind.rawValue).joined(separator: ",")
-                LumaLog.appsTorrent.info("Parsed release \(release.version.rawValue, privacy: .public) [\(release.distributionVariant.rawValue, privacy: .public)], options=\(optionKinds, privacy: .public)")
+                LumaLog.appsTorrent.info("Parsed release \(release.version.rawValue, privacy: .private) [\(release.distributionVariant.rawValue, privacy: .private)], options=\(optionKinds, privacy: .private)")
             } catch {
                 firstPageError = firstPageError ?? error
-                LumaLog.appsTorrent.error("Candidate page failed: url=\(pageURL.absoluteString, privacy: .public), error=\(error.localizedDescription, privacy: .public)")
+                LumaLog.appsTorrent.error("Candidate page failed: url=\(pageURL.absoluteString, privacy: .private), error=\(error.localizedDescription, privacy: .private)")
             }
         }
 
@@ -62,7 +62,7 @@ nonisolated struct AppsTorrentSource: UpdateSource {
             releases,
             installationSource: application.installationSource
         )
-        LumaLog.appsTorrent.info("Variant filtering kept \(releasesForInstallation.count, privacy: .public) of \(releases.count, privacy: .public) releases")
+        LumaLog.appsTorrent.info("Variant filtering kept \(releasesForInstallation.count, privacy: .private) of \(releases.count, privacy: .private) releases")
 
         guard let latestRelease = releasesForInstallation.max(by: isReleaseOlder) else {
             return nil
@@ -70,7 +70,7 @@ nonisolated struct AppsTorrentSource: UpdateSource {
 
         let comparison = versionComparator.compare(latestRelease.version, application.version)
         LumaLog.appsTorrent.info(
-            "Selected release \(latestRelease.version.rawValue, privacy: .public); comparison result \(comparisonDescription(comparison), privacy: .public)"
+            "Selected release \(latestRelease.version.rawValue, privacy: .private); comparison result \(comparisonDescription(comparison), privacy: .private)"
         )
 
         guard comparison == .orderedDescending else {
@@ -87,13 +87,13 @@ nonisolated struct AppsTorrentSource: UpdateSource {
 
     private func pageURLs(for application: InstalledApplication) async throws -> [URL] {
         if let mappedURL = pageURLsByBundleIdentifier[application.id.bundleIdentifier] {
-            LumaLog.appsTorrent.info("Using mapped AppsTorrent page for \(application.name, privacy: .public): \(mappedURL.absoluteString, privacy: .public)")
+            LumaLog.appsTorrent.info("Using mapped AppsTorrent page for \(application.name, privacy: .private): \(mappedURL.absoluteString, privacy: .private)")
             return [mappedURL]
         }
 
-        LumaLog.appsTorrent.info("Resolving AppsTorrent candidates by search for \(application.name, privacy: .public)")
+        LumaLog.appsTorrent.info("Resolving AppsTorrent candidates by search for \(application.name, privacy: .private)")
         let resolved = try await resolver.resolveCandidates(for: application).map(\.url)
-        LumaLog.appsTorrent.info("Search resolver returned \(resolved.count, privacy: .public) candidate pages")
+        LumaLog.appsTorrent.info("Search resolver returned \(resolved.count, privacy: .private) candidate pages")
         return resolved
     }
 
