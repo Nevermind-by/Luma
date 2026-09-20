@@ -18,6 +18,7 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
         case installerNotFound
         case bundleIdentifierMismatch(expected: String, actual: String)
         case versionMismatch(expected: String, actual: String)
+        case invalidCodeSignature
 
         var errorDescription: String? {
             switch self {
@@ -41,13 +42,16 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
 
     private let classifier: any ArtifactClassifying
     private let isoExtractor: any ISOImageExtracting
+    private let codeSignatureVerifier: any CodeSignatureVerifying
 
     init(
         classifier: any ArtifactClassifying = ArtifactClassifier(),
-        isoExtractor: any ISOImageExtracting = ISOImageExtractor()
+        isoExtractor: any ISOImageExtracting = ISOImageExtractor(),
+        codeSignatureVerifier: any CodeSignatureVerifying = CodeSignatureVerifier()
     ) {
         self.classifier = classifier
         self.isoExtractor = isoExtractor
+        self.codeSignatureVerifier = codeSignatureVerifier
     }
 
     func inspect(
@@ -145,6 +149,10 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
             expectedVersion: expectedVersion
         )
 
+        guard codeSignatureVerifier.verifyApplication(at: applicationURL) else {
+            throw InspectionError.invalidCodeSignature
+        }
+
         keepStagingDirectory = true
         return PreparedUpdate(
             application: expectedApplication,
@@ -167,6 +175,10 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
             expectedApplication: expectedApplication,
             expectedVersion: expectedVersion
         )
+
+        guard codeSignatureVerifier.verifyApplication(at: sourceURL) else {
+            throw InspectionError.invalidCodeSignature
+        }
 
         return PreparedUpdate(
             application: expectedApplication,
