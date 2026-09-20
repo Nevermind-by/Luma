@@ -177,12 +177,18 @@ final class ApplicationLibraryViewModel: ObservableObject {
                 }
             }
 
-            let preparedUpdate = PreparedUpdate(
-                application: application.id,
-                version: candidate.version,
-                artifactURL: artifact.fileURL,
-                payload: .externalInstaller(artifact.fileURL)
-            )
+            let preparedUpdate: PreparedUpdate
+            do {
+                preparedUpdate = try await artifactInspector.inspect(
+                    artifact: artifact,
+                    expectedApplication: application.id,
+                    expectedVersion: candidate.version
+                )
+            } catch {
+                try? FileManager.default.removeItem(at: artifact.fileURL)
+                throw error
+            }
+
             pendingUpdateStore.save(
                 PendingExternalUpdate(
                     bundleIdentifier: application.id.bundleIdentifier,
