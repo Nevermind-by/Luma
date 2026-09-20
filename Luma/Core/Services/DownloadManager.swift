@@ -111,10 +111,10 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         }
     }
 
-    func cancelDownload(for url: URL) {
+    func cancelDownload(for application: ApplicationIdentity) {
         let cancelledJob: Job?
         lock.lock()
-        if let taskIdentifier = jobs.first(where: { $0.value.originalURL == url })?.key {
+        if let taskIdentifier = jobs.first(where: { $0.value.application == application })?.key {
             cancelledJob = jobs.removeValue(forKey: taskIdentifier)
         } else {
             cancelledJob = nil
@@ -124,7 +124,9 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         guard let cancelledJob else { return }
 
         cancelledJob.task.cancel()
-        LumaLog.appsTorrent.info("Download cancelled: \(url.absoluteString, privacy: .private)")
+        LumaLog.appsTorrent.info(
+            "Download cancelled for application \(application.bundleIdentifier, privacy: .private): \(cancelledJob.originalURL.absoluteString, privacy: .private)"
+        )
         cancelledJob.continuation.resume(throwing: DownloadError.cancelled)
     }
 
