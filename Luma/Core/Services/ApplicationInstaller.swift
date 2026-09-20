@@ -35,7 +35,7 @@ final class ApplicationInstaller: ApplicationInstalling {
             case .replacementFailed:
                 return String(localized: "Luma could not replace the installed application. The original app was restored when possible.")
             case .verificationFailed:
-                return String(localized: "The installed application did not pass the final identity and version check.")
+                return String(localized: "The installed application did not pass the final identity, version, and code signature check.")
             case .installerOpenFailed:
                 return String(localized: "Luma could not open the downloaded installer.")
             case .cancelled:
@@ -45,9 +45,14 @@ final class ApplicationInstaller: ApplicationInstalling {
     }
 
     private let destinationStore: InstallDestinationStore
+    private let codeSignatureVerifier: any CodeSignatureVerifying
 
-    init(destinationStore: InstallDestinationStore) {
+    init(
+        destinationStore: InstallDestinationStore,
+        codeSignatureVerifier: any CodeSignatureVerifying = CodeSignatureVerifier()
+    ) {
         self.destinationStore = destinationStore
+        self.codeSignatureVerifier = codeSignatureVerifier
     }
 
     func install(
@@ -248,7 +253,7 @@ final class ApplicationInstaller: ApplicationInstalling {
         }
     }
 
-    private func verifyInstalledApplication(
+    func verifyInstalledApplication(
         at url: URL,
         expected: PreparedUpdate
     ) -> Bool {
@@ -262,6 +267,10 @@ final class ApplicationInstaller: ApplicationInstalling {
             return false
         }
 
-        return SoftwareVersion(version) == expected.version
+        guard SoftwareVersion(version) == expected.version else {
+            return false
+        }
+
+        return codeSignatureVerifier.verifyApplication(at: url)
     }
 }
