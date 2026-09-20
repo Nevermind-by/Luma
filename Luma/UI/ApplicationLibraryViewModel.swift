@@ -131,7 +131,7 @@ final class ApplicationLibraryViewModel: ObservableObject {
               case .updateAvailable(let candidate)? = updateStates[application.id] else { return }
 
         guard let option = candidate.downloadOptions.first(where: { $0.kind == .direct }) else {
-            downloadStates[application.id] = .failed("A direct download is not available for this update.")
+            downloadStates[application.id] = .failed(String(localized: "A direct download is not available for this update."))
             return
         }
 
@@ -143,14 +143,14 @@ final class ApplicationLibraryViewModel: ObservableObject {
             destinationDirectory = selectedDirectory
             downloadDirectoryURL = selectedDirectory
         } else {
-            downloadStates[application.id] = .failed("Luma needs access to a folder where it can save the update.")
+            downloadStates[application.id] = .failed(String(localized: "Luma needs access to a folder where it can save the update."))
             return
         }
 
         guard destinationDirectory.startAccessingSecurityScopedResource() else {
             downloadDestinationStore.clear()
             downloadDirectoryURL = Self.defaultDownloadDirectory()
-            downloadStates[application.id] = .failed("Luma could not access the saved download folder. Choose another folder in Settings.")
+            downloadStates[application.id] = .failed(String(localized: "Luma could not access the saved download folder. Choose another folder in Settings."))
             return
         }
         defer { destinationDirectory.stopAccessingSecurityScopedResource() }
@@ -417,8 +417,8 @@ final class ApplicationLibraryViewModel: ObservableObject {
             panel.allowsMultipleSelection = false
             panel.canCreateDirectories = true
             panel.directoryURL = Self.defaultDownloadDirectory()
-            panel.prompt = "Allow Access"
-            panel.message = "Choose where Luma should save updates. Downloads is selected by default."
+            panel.prompt = String(localized: "Allow Access")
+            panel.message = String(localized: "Choose where Luma should save updates. Downloads is selected by default.")
             panel.begin { response in continuation.resume(returning: response == .OK ? panel.url : nil) }
         }
     }
@@ -430,8 +430,8 @@ final class ApplicationLibraryViewModel: ObservableObject {
             panel.canChooseDirectories = true
             panel.allowsMultipleSelection = false
             panel.canCreateDirectories = true
-            panel.prompt = "Choose"
-            panel.message = "Choose where Luma should save updates."
+            panel.prompt = String(localized: "Choose")
+            panel.message = String(localized: "Choose where Luma should save updates.")
             panel.begin { response in continuation.resume(returning: response == .OK ? panel.url : nil) }
         }
     }
