@@ -23,7 +23,7 @@ struct DownloadManagerTests {
 
         let result = DownloadManager.matchingCookies(
             [appstorrentCookie, unrelatedCookie],
-            for: URL(string: "https://mediafire.com/file/installer.dmg")!
+            for: URL(string: "https://downloads.example.com/file/installer.dmg")!
         )
 
         #expect(result.isEmpty)
