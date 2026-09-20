@@ -168,7 +168,7 @@ struct ContentView: View {
     }
 
     private func sidebarRow(
-        _ title: String,
+        _ title: LocalizedStringKey,
         systemImage: String,
         count: Int,
         selection: SidebarSelection
@@ -210,6 +210,7 @@ struct ContentView: View {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
                 .disabled(viewModel.isScanning || viewModel.isCheckingUpdates)
+                .accessibilityIdentifier("refresh-button")
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 18)
@@ -257,7 +258,7 @@ struct ContentView: View {
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search applications")
     }
 
-    private var sourceStatusText: String {
+    private var sourceStatusText: LocalizedStringKey {
         switch viewModel.appsTorrentConnection.state {
         case .checking: return "Checking session…"
         case .connected: return "Connected"
@@ -274,7 +275,7 @@ struct ContentView: View {
         }
     }
 
-    private var selectionTitle: String {
+    private var selectionTitle: LocalizedStringKey {
         switch selection {
         case .all: return "Applications"
         case .updates: return "Updates"
@@ -283,7 +284,7 @@ struct ContentView: View {
         }
     }
 
-    private var selectionSubtitle: String {
+    private var selectionSubtitle: LocalizedStringKey {
         switch selection {
         case .all:
             return "Installed applications on this Mac"
@@ -296,7 +297,7 @@ struct ContentView: View {
         }
     }
 
-    private var emptyStateTitle: String {
+    private var emptyStateTitle: LocalizedStringKey {
         switch selection {
         case .all: return "No Applications Found"
         case .updates: return "No Updates"
@@ -314,7 +315,7 @@ struct ContentView: View {
         }
     }
 
-    private var emptyStateDescription: String {
+    private var emptyStateDescription: LocalizedStringKey {
         switch selection {
         case .all:
             return "Luma could not find any applications in the standard Applications folders."
