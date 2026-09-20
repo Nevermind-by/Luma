@@ -120,7 +120,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         guard let cancelledJob else { return }
 
         cancelledJob.task.cancel()
-        LumaLog.appsTorrent.info("Download cancelled: \(url.absoluteString, privacy: .public)")
+        LumaLog.appsTorrent.info("Download cancelled: \(url.absoluteString, privacy: .private)")
         cancelledJob.continuation.resume(throwing: DownloadError.cancelled)
     }
 
@@ -235,7 +235,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
             let finalURL = response.url ?? downloadTask.currentRequest?.url ?? completedJob.originalURL
 
             LumaLog.appsTorrent.info(
-                "Downloaded artifact: status=\(response.statusCode), mime=\(response.mimeType ?? "unknown", privacy: .public), filename=\(filename, privacy: .public), bytes=\(byteCount, privacy: .public), finalURL=\(finalURL.absoluteString, privacy: .public)"
+                "Downloaded artifact: status=\(response.statusCode), mime=\(response.mimeType ?? "unknown", privacy: .private), filename=\(filename, privacy: .private), bytes=\(byteCount, privacy: .private), finalURL=\(finalURL.absoluteString, privacy: .private)"
             )
 
             let artifact = DownloadedArtifact(
@@ -261,7 +261,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         guard let error else { return }
         guard let job = removeJob(for: task.taskIdentifier) else { return }
         LumaLog.appsTorrent.error(
-            "Download failed: \(error.localizedDescription, privacy: .public)"
+            "Download failed: \(error.localizedDescription, privacy: .private)"
         )
         job.continuation.resume(throwing: error)
     }
@@ -279,9 +279,3 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
     }
 }
 
-private extension HTTPCookie {
-    func isExpired(at date: Date) -> Bool {
-        guard let expiresDate else { return false }
-        return expiresDate <= date
-    }
-}
