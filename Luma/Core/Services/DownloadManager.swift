@@ -169,9 +169,9 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
-        let activeJob = job(for: downloadTask.taskIdentifier)
+        guard let activeJob = job(for: downloadTask.taskIdentifier) else { return }
         let total = totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : nil
-        activeJob?.progress(
+        activeJob.progress(
             DownloadProgress(bytesWritten: totalBytesWritten, totalBytes: total)
         )
     }
@@ -181,7 +181,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         task: URLSessionTask,
         willPerformHTTPRedirection response: HTTPURLResponse,
         newRequest request: URLRequest,
-        completionHandler: @escaping (URLRequest) -> Void
+        completionHandler: @escaping @Sendable (URLRequest?) -> Void
     ) {
         guard let activeJob = job(for: task.taskIdentifier),
               let destinationURL = request.url else {
@@ -206,7 +206,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        guard let activeJob = job(for: downloadTask.taskIdentifier) else { return }
+        guard job(for: downloadTask.taskIdentifier) != nil else { return }
 
         guard let response = downloadTask.response as? HTTPURLResponse else {
             let completedJob = removeJob(for: downloadTask.taskIdentifier)
