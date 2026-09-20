@@ -80,17 +80,17 @@ struct AppsTorrentLoginView: View {
     private var sessionStatusText: String {
         switch session.state {
         case .idle:
-            return "Opening AppsTorrent…"
+            return String(localized: "Opening AppsTorrent…")
         case .loading(let url):
-            return "Loading \(url.host ?? "AppsTorrent")…"
+            return String(localized: "Loading \(url.host ?? "AppsTorrent")…")
         case .ready:
-            return "Browser ready"
+            return String(localized: "Browser ready")
         case .downloading(let url):
-            return "Downloading \(url.lastPathComponent)…"
+            return String(localized: "Downloading \(url.lastPathComponent)…")
         case .failed(let message):
             return message
         case .processTerminated:
-            return "Browser process terminated"
+            return String(localized: "Browser process terminated")
         }
     }
 

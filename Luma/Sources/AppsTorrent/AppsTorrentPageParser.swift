@@ -10,13 +10,13 @@ nonisolated struct AppsTorrentPageParser: Sendable {
         var errorDescription: String? {
             switch self {
             case .missingTitle:
-                return "AppsTorrent page is missing the application title."
+                return String(localized: "AppsTorrent page is missing the application title.")
             case .missingVersion:
-                return "AppsTorrent page is missing the software version."
+                return String(localized: "AppsTorrent page is missing the software version.")
             case .missingCurrentReleaseBlock:
-                return "AppsTorrent page is missing the current release block."
+                return String(localized: "AppsTorrent page is missing the current release block.")
             case .invalidDownloadURL:
-                return "AppsTorrent page does not contain a supported download link."
+                return String(localized: "AppsTorrent page does not contain a supported download link.")
             }
         }
     }

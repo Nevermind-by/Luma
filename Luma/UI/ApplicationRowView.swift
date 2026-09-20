@@ -33,7 +33,7 @@ struct ApplicationRowView: View {
                 }
 
                 HStack(spacing: 6) {
-                    Text("Version (application.version.rawValue)")
+                    Text("Version \(application.version.rawValue)")
                     Text("•")
                     Text(application.id.bundleIdentifier)
                         .lineLimit(1)
@@ -155,7 +155,7 @@ struct ApplicationRowView: View {
                 if let fraction = progress.fractionCompleted {
                     ProgressView(value: fraction)
                         .frame(width: 90)
-                    Text("(Int(fraction * 100))%")
+                    Text("\(Int(fraction * 100))%")
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.secondary)
                 } else {
@@ -228,7 +228,7 @@ struct ApplicationRowView: View {
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
-                Text("Opening (version.rawValue)…")
+                Text("Opening \(version.rawValue)…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -286,7 +286,7 @@ struct ApplicationRowView: View {
             }
 
         case .installed(let version):
-            Label("Installed (version.rawValue)", systemImage: "checkmark.circle.fill")
+            Label("Installed \(version.rawValue)", systemImage: "checkmark.circle.fill")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.tint)
 

@@ -127,10 +127,21 @@ nonisolated struct AppsTorrentBrowserSearchProvider: AppsTorrentSearchProviding 
     }
 }
 
-enum AppsTorrentSearchError: Error, Equatable {
+enum AppsTorrentSearchError: Error, Equatable, LocalizedError {
     case invalidSearchURL
     case invalidResponse
     case cloudflareChallengeDetected
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidSearchURL:
+            return String(localized: "AppsTorrent search URL is invalid.")
+        case .invalidResponse:
+            return String(localized: "AppsTorrent returned an invalid response.")
+        case .cloudflareChallengeDetected:
+            return String(localized: "AppsTorrent requires browser verification.")
+        }
+    }
 }
 
 nonisolated struct AppsTorrentSearchParser: Sendable {

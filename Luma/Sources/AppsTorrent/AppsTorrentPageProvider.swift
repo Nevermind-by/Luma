@@ -6,9 +6,18 @@ nonisolated protocol AppsTorrentPageProviding: Sendable {
 }
 
 nonisolated struct URLSessionAppsTorrentPageProvider: AppsTorrentPageProviding {
-    enum ProviderError: Error, Equatable {
+    enum ProviderError: Error, Equatable, LocalizedError {
         case invalidResponse
         case cloudflareChallengeDetected
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidResponse:
+                return String(localized: "AppsTorrent returned an invalid page response.")
+            case .cloudflareChallengeDetected:
+                return String(localized: "AppsTorrent requires browser verification.")
+            }
+        }
     }
 
     private let session: URLSession
