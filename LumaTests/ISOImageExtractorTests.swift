@@ -6,7 +6,7 @@ struct ISOImageExtractorTests {
     @Test
     func extractsFirstDMGFrom1024ByteBlockIso9660Image() throws {
         let fileManager = FileManager.default
-        let root = fileManager.temporaryDirectory.appendingPathComponent("LumaISOTest-(UUID().uuidString)")
+        let root = fileManager.temporaryDirectory.appendingPathComponent("LumaISOTest-\(UUID().uuidString)")
         let output = root.appendingPathComponent("Output", isDirectory: true)
         let isoURL = root.appendingPathComponent("Fixture.iso")
         try fileManager.createDirectory(at: output, withIntermediateDirectories: true)
