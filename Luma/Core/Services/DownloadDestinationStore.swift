@@ -25,7 +25,16 @@ struct DownloadDestinationStore {
         }
 
         if isStale {
-            save(directory: url)
+            guard let refreshedBookmark = try? url.bookmarkData(
+                options: [.withSecurityScope],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            ) else {
+                defaults.removeObject(forKey: bookmarkKey)
+                return nil
+            }
+
+            defaults.set(refreshedBookmark, forKey: bookmarkKey)
         }
 
         return url
