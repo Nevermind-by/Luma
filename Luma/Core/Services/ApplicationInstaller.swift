@@ -25,21 +25,21 @@ final class ApplicationInstaller: ApplicationInstalling {
         var errorDescription: String? {
             switch self {
             case .applicationNotFound:
-                return "The installed application could not be found."
+                return String(localized: "The installed application could not be found.")
             case .destinationAuthorizationRequired:
-                return "Luma could not access the application’s installation folder."
+                return String(localized: "Luma could not access the application’s installation folder.")
             case .destinationMismatch:
-                return "The selected folder does not contain the installed application."
+                return String(localized: "The selected folder does not contain the installed application.")
             case .applicationStillRunning:
-                return "The application is still running. Quit it and try again."
+                return String(localized: "The application is still running. Quit it and try again.")
             case .replacementFailed:
-                return "Luma could not replace the installed application. The original app was restored when possible."
+                return String(localized: "Luma could not replace the installed application. The original app was restored when possible.")
             case .verificationFailed:
-                return "The installed application did not pass the final identity and version check."
+                return String(localized: "The installed application did not pass the final identity and version check.")
             case .installerOpenFailed:
-                return "Luma could not open the downloaded installer."
+                return String(localized: "Luma could not open the downloaded installer.")
             case .cancelled:
-                return "Installation was cancelled."
+                return String(localized: "Installation was cancelled.")
             }
         }
     }
@@ -224,8 +224,8 @@ final class ApplicationInstaller: ApplicationInstalling {
             panel.allowsMultipleSelection = false
             panel.canCreateDirectories = false
             panel.directoryURL = expectedDirectory
-            panel.prompt = "Allow"
-            panel.message = "Allow Luma to update \(application.name) in this folder."
+            panel.prompt = String(localized: "Allow")
+            panel.message = String(localized: "Allow Luma to update \(application.name) in this folder.")
             panel.begin { response in
                 continuation.resume(returning: response == .OK ? panel.url : nil)
             }
@@ -238,11 +238,11 @@ final class ApplicationInstaller: ApplicationInstalling {
     ) async -> Bool {
         await withCheckedContinuation { continuation in
             let alert = NSAlert()
-            alert.messageText = "Quit \(applicationName) to install the update?"
-            alert.informativeText = "Luma needs to replace the installed application. Unsaved work in \(applicationName) may be lost."
+            alert.messageText = String(localized: "Quit \(applicationName) to install the update?")
+            alert.informativeText = String(localized: "Luma needs to replace the installed application. Unsaved work in \(applicationName) may be lost.")
             alert.alertStyle = .warning
-            alert.addButton(withTitle: "Quit and Install")
-            alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: String(localized: "Quit and Install"))
+            alert.addButton(withTitle: String(localized: "Cancel"))
             let response = alert.runModal()
             continuation.resume(returning: response == .alertFirstButtonReturn)
         }
