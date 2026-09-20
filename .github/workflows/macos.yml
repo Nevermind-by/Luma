@@ -21,7 +21,7 @@ jobs:
 
     steps:
       - name: Получить исходный код
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Сборка
         run: |
@@ -47,7 +47,7 @@ jobs:
 
     steps:
       - name: Получить исходный код
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Определить версию
         run: |
