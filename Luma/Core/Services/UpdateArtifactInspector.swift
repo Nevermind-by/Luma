@@ -36,6 +36,8 @@ final class UpdateArtifactInspector: UpdateArtifactInspecting, @unchecked Sendab
                 return String(localized: "The downloaded application is not the expected app (bundle ID \(actual), expected \(expected)).")
             case .versionMismatch(let expected, let actual):
                 return String(localized: "The downloaded application reports version \(actual), expected \(expected).")
+            case .invalidCodeSignature:
+                return String(localized: "The downloaded application has an invalid or untrusted code signature.")
             }
         }
     }
