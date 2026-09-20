@@ -4747,6 +4747,241 @@
           }
         }
       }
+    },
+    "Connect AppsTorrent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect AppsTorrent"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подключить AppsTorrent"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AppsTorrent verbinden"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecter AppsTorrent"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectar AppsTorrent"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接 AppsTorrent"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AppsTorrentに接続"
+          }
+        }
+      }
+    },
+    "Log in to AppsTorrent in the browser below. Luma does not read or store your password. The website session is kept by WebKit on this Mac so you can stay signed in between launches.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log in to AppsTorrent in the browser below. Luma does not read or store your password. The website session is kept by WebKit on this Mac so you can stay signed in between launches."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войдите в AppsTorrent в браузере ниже. Luma не читает и не хранит ваш пароль. Сессия сайта сохраняется в WebKit на этом Mac, поэтому вы можете оставаться авторизованным между запусками."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Melden Sie sich unten im Browser bei AppsTorrent an. Luma liest oder speichert Ihr Passwort nicht. Die Website-Sitzung wird von WebKit auf diesem Mac gespeichert, damit Sie zwischen den Starts angemeldet bleiben können."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connectez-vous à AppsTorrent dans le navigateur ci-dessous. Luma ne lit ni ne stocke votre mot de passe. La session du site est conservée par WebKit sur ce Mac pour vous permettre de rester connecté entre les lancements."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inicia sesión en AppsTorrent en el navegador de abajo. Luma no lee ni almacena tu contraseña. WebKit mantiene la sesión del sitio en este Mac para que puedas seguir conectado entre ejecuciones."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在下方浏览器中登录 AppsTorrent。Luma 不会读取或存储您的密码。网站会话由此 Mac 上的 WebKit 保存，因此重新启动后仍可保持登录状态。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下のブラウザで AppsTorrent にログインしてください。Luma はパスワードを読み取ったり保存したりしません。サイトのセッションはこの Mac の WebKit に保存されるため、再起動後もログイン状態を維持できます。"
+          }
+        }
+      }
+    },
+    "Open AppsTorrent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open AppsTorrent"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть AppsTorrent"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AppsTorrent öffnen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir AppsTorrent"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir AppsTorrent"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 AppsTorrent"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AppsTorrentを開く"
+          }
+        }
+      }
+    },
+    "Clear Session": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Session"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очистить сессию"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sitzung löschen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effacer la session"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borrar sesión"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除会话"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "セッションを消去"
+          }
+        }
+      }
+    },
+    "I’m Logged In": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I’m Logged In"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Я вошёл"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ich bin angemeldet"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Je suis connecté"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "He iniciado sesión"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "我已登录"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ログインしました"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
