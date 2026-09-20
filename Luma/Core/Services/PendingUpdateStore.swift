@@ -62,16 +62,21 @@ struct PendingUpdateStore {
             relativeTo: nil,
             bookmarkDataIsStale: &isStale
         ) else {
-            return pending.fileURL
+            return nil
         }
 
-        if isStale {
+        if isStale,
+           let refreshedBookmarkData = try? resolvedURL.bookmarkData(
+               options: [.withSecurityScope],
+               includingResourceValuesForKeys: nil,
+               relativeTo: nil
+           ) {
             save(
                 PendingExternalUpdate(
                     bundleIdentifier: pending.bundleIdentifier,
                     version: pending.version,
                     fileURL: resolvedURL,
-                    fileBookmarkData: bookmarkData,
+                    fileBookmarkData: refreshedBookmarkData,
                     installerOpened: pending.installerOpened
                 )
             )
@@ -89,6 +94,7 @@ struct PendingUpdateStore {
         let startedSecurityScope: Bool
         if pending.fileBookmarkData != nil {
             startedSecurityScope = resolvedURL.startAccessingSecurityScopedResource()
+            guard startedSecurityScope else { return nil }
         } else {
             startedSecurityScope = false
         }
