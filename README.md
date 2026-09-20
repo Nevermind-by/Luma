@@ -24,6 +24,16 @@ The current implementation includes:
 
 The current GitHub Actions release artifact is intentionally **unsigned**. Developer ID signing and notarization are the next distribution step. Release ZIP/DMG artifacts are accompanied by a SHA-256 checksum manifest.
 
+A separate manual workflow, `.github/workflows/release-signed.yml`, prepares a Developer ID signed release and submits the DMG to Apple for notarization. It expects these GitHub Actions secrets:
+
+- `APPLE_CERTIFICATE_P12_BASE64` — base64-encoded Developer ID Application certificate exported as PKCS#12.
+- `APPLE_CERTIFICATE_PASSWORD` — password for that PKCS#12 file.
+- `APPLE_TEAM_ID` — Apple Developer Team ID.
+- `APPLE_ID` — Apple ID used for notarization.
+- `APPLE_APP_SPECIFIC_PASSWORD` — app-specific password for `notarytool`.
+
+The signing workflow is intentionally **manual** until those secrets are configured. It imports the certificate into an ephemeral CI keychain, signs the archive, notarizes the DMG with `notarytool`, staples the ticket, validates the result, and removes the temporary keychain. Apple documents Developer ID Application certificates and `notarytool` as the supported path for direct macOS distribution. citeturn0search6turn0search0
+
 ## Update lifecycle
 
 ```text
