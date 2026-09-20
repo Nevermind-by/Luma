@@ -14,10 +14,10 @@ nonisolated struct AppsTorrentApplicationResolver: Sendable {
     }
 
     func resolveCandidates(for application: InstalledApplication) async throws -> [AppsTorrentSearchResult] {
-        LumaLog.appsTorrent.info("Searching AppsTorrent for \(application.name, privacy: .public)")
+        LumaLog.appsTorrent.info("Searching AppsTorrent for \(application.name, privacy: .private)")
 
         let results = try await searchProvider.search(for: application.name)
-        LumaLog.appsTorrent.info("AppsTorrent search returned \(results.count, privacy: .public) results")
+        LumaLog.appsTorrent.info("AppsTorrent search returned \(results.count, privacy: .private) results")
 
         let matches = results
             .compactMap { result -> Match? in
@@ -34,7 +34,7 @@ nonisolated struct AppsTorrentApplicationResolver: Sendable {
             }
 
         guard !matches.isEmpty else {
-            LumaLog.appsTorrent.error("No AppsTorrent page matched \(application.name, privacy: .public)")
+            LumaLog.appsTorrent.error("No AppsTorrent page matched \(application.name, privacy: .private)")
             throw ResolverError.noMatch
         }
 
@@ -46,7 +46,7 @@ nonisolated struct AppsTorrentApplicationResolver: Sendable {
             return match.result
         }
 
-        LumaLog.appsTorrent.info("Resolved \(candidates.count, privacy: .public) candidate pages for \(application.name, privacy: .public)")
+        LumaLog.appsTorrent.info("Resolved \(candidates.count, privacy: .private) candidate pages for \(application.name, privacy: .private)")
         return candidates
     }
 

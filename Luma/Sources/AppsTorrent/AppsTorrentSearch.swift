@@ -31,7 +31,7 @@ nonisolated struct URLSessionAppsTorrentSearchProvider: AppsTorrentSearchProvidi
         }
 
         do {
-            LumaLog.appsTorrent.info("Searching AppsTorrent query=\(query, privacy: .public)")
+            LumaLog.appsTorrent.info("Searching AppsTorrent query=\(query, privacy: .private)")
 
             var request = URLRequest(url: url)
             request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
@@ -60,7 +60,7 @@ nonisolated struct URLSessionAppsTorrentSearchProvider: AppsTorrentSearchProvidi
             }
 
             let results = AppsTorrentSearchParser().parse(html: html, baseURL: baseURL)
-            LumaLog.appsTorrent.info("AppsTorrent URLSession search returned \(results.count, privacy: .public) results")
+            LumaLog.appsTorrent.info("AppsTorrent URLSession search returned \(results.count, privacy: .private) results")
             return results
         } catch AppsTorrentSearchError.cloudflareChallengeDetected {
             LumaLog.appsTorrent.info("Falling back to authenticated WebKit for AppsTorrent search")
@@ -122,7 +122,7 @@ nonisolated struct AppsTorrentBrowserSearchProvider: AppsTorrentSearchProviding 
         }
 
         let results = AppsTorrentSearchParser().parse(html: html, baseURL: baseURL)
-        LumaLog.appsTorrent.info("Authenticated WebKit search returned \(results.count, privacy: .public) results")
+        LumaLog.appsTorrent.info("Authenticated WebKit search returned \(results.count, privacy: .private) results")
         return results
     }
 }
