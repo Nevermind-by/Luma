@@ -5,7 +5,7 @@ import Testing
 struct DownloadManagerTests {
     @Test
     func filtersCookiesToTheDownloadHost() throws {
-        let appstorrentCookie = try HTTPCookie(properties: [
+        let appstorrentCookie = HTTPCookie(properties: [
             .domain: "appstorrent.ru",
             .path: "/",
             .name: "session",
@@ -13,7 +13,7 @@ struct DownloadManagerTests {
             .secure: "TRUE"
         ]).unwrap()
 
-        let unrelatedCookie = try HTTPCookie(properties: [
+        let unrelatedCookie = HTTPCookie(properties: [
             .domain: "mediafire.com",
             .path: "/",
             .name: "session",
@@ -31,7 +31,7 @@ struct DownloadManagerTests {
 
     @Test
     func allowsParentDomainCookiesForSecureSubdomains() throws {
-        let cookie = try HTTPCookie(properties: [
+        let cookie = HTTPCookie(properties: [
             .domain: ".appstorrent.ru",
             .path: "/",
             .name: "session",
@@ -49,7 +49,7 @@ struct DownloadManagerTests {
 
     @Test
     func rejectsSecureCookiesForHTTPDownloads() throws {
-        let cookie = try HTTPCookie(properties: [
+        let cookie = HTTPCookie(properties: [
             .domain: "example.com",
             .path: "/",
             .name: "session",
@@ -67,7 +67,7 @@ struct DownloadManagerTests {
 
     @Test
     func ignoresExpiredCookies() throws {
-        let cookie = try HTTPCookie(properties: [
+        let cookie = HTTPCookie(properties: [
             .domain: "example.com",
             .path: "/",
             .name: "session",
@@ -86,7 +86,7 @@ struct DownloadManagerTests {
 }
 
 private extension Optional where Wrapped == HTTPCookie {
-    func unwrap(file: StaticString = #filePath, line: UInt = #line) throws -> HTTPCookie {
+    func unwrap() throws -> HTTPCookie {
         guard let value = self else {
             throw TestCookieError.invalidCookie
         }
