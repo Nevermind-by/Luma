@@ -185,22 +185,42 @@ struct ApplicationRowView: View {
                     .multilineTextAlignment(.trailing)
                     .frame(maxWidth: 320, alignment: .trailing)
 
-                HStack(spacing: 6) {
-                    Button {
-                        onInstall()
-                    } label: {
-                        Text("Open Installer")
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.85)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .accessibilityIdentifier("open-installer-button")
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        Button {
+                            onInstall()
+                        } label: {
+                            Text("Open Installer")
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.85)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .accessibilityIdentifier("open-installer-button")
 
-                    Button("Show in Finder") {
-                        onShowDownloadedFile()
+                        Button("Show in Finder") {
+                            onShowDownloadedFile()
+                        }
+                        .controlSize(.small)
                     }
-                    .controlSize(.small)
+
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Button {
+                            onInstall()
+                        } label: {
+                            Text("Open Installer")
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.85)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .accessibilityIdentifier("open-installer-button")
+
+                        Button("Show in Finder") {
+                            onShowDownloadedFile()
+                        }
+                        .controlSize(.small)
+                    }
                 }
             }
 
@@ -228,21 +248,40 @@ struct ApplicationRowView: View {
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(.secondary)
 
-                HStack(spacing: 6) {
-                    Button {
-                        onReopenInstaller()
-                    } label: {
-                        Text("Open Installer Again")
-                            .lineLimit(2)
-                            .minimumScaleFactor(0.85)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        Button {
+                            onReopenInstaller()
+                        } label: {
+                            Text("Open Installer Again")
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.85)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
 
-                    Button("Show in Finder") {
-                        onShowDownloadedFile()
+                        Button("Show in Finder") {
+                            onShowDownloadedFile()
+                        }
+                        .controlSize(.small)
                     }
-                    .controlSize(.small)
+
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Button {
+                            onReopenInstaller()
+                        } label: {
+                            Text("Open Installer Again")
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.85)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+
+                        Button("Show in Finder") {
+                            onShowDownloadedFile()
+                        }
+                        .controlSize(.small)
+                    }
                 }
             }
 
