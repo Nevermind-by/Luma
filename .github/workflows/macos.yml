@@ -23,8 +23,6 @@ jobs:
             -project Luma.xcodeproj \
             -scheme Luma \
             -destination 'platform=macOS' \
-            MARKETING_VERSION=1.0.0 \
-            CURRENT_PROJECT_VERSION=1 \
             build
 
       - name: Test
@@ -33,8 +31,6 @@ jobs:
             -project Luma.xcodeproj \
             -scheme Luma \
             -destination 'platform=macOS' \
-            MARKETING_VERSION=1.0.0 \
-            CURRENT_PROJECT_VERSION=1 \
             test
 
   package-release:
@@ -46,39 +42,92 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Read release version
+        run: |
+          set -euo pipefail
+          VERSION="$(
+            xcodebuild \
+              -project Luma.xcodeproj \
+              -scheme Luma \
+              -configuration Release \
+              -showBuildSettings |
+              awk -F ' = ' '$1 ~ /MARKETING_VERSION$/ {print $2; exit}'
+          )"
+          test -n "$VERSION"
+          echo "LUMA_VERSION=$VERSION" >> "$GITHUB_ENV"
+
       - name: Archive Release
         run: |
+          set -euo pipefail
           rm -rf build
           xcodebuild \
             -project Luma.xcodeproj \
             -scheme Luma \
             -configuration Release \
             -destination 'generic/platform=macOS' \
-            MARKETING_VERSION=1.0.0 \
-            CURRENT_PROJECT_VERSION=1 \
             CODE_SIGNING_ALLOWED=NO \
             archive \
             -archivePath build/Luma.xcarchive
 
+      - name: Validate release configuration
+        run: |
+          set -euo pipefail
+
+          APP="build/Luma.xcarchive/Products/Applications/Luma.app"
+          test -d "$APP"
+
+          BUNDLE_ID="$(plutil -extract CFBundleIdentifier raw -o - "$APP/Contents/Info.plist")"
+          VERSION="$(plutil -extract CFBundleShortVersionString raw -o - "$APP/Contents/Info.plist")"
+          BUILD="$(plutil -extract CFBundleVersion raw -o - "$APP/Contents/Info.plist")"
+          ICON="$(plutil -extract CFBundleIconName raw -o - "$APP/Contents/Info.plist")"
+
+          test "$BUNDLE_ID" = "by.nevermind.Luma"
+          test "$VERSION" = "$LUMA_VERSION"
+          test -n "$BUILD"
+          test "$ICON" = "AppIcon"
+
+          SETTINGS="$(
+            xcodebuild \
+              -project Luma.xcodeproj \
+              -scheme Luma \
+              -configuration Release \
+              -showBuildSettings
+          )"
+
+          grep -q 'ENABLE_APP_SANDBOX = YES' <<< "$SETTINGS"
+          grep -q 'ENABLE_HARDENED_RUNTIME = YES' <<< "$SETTINGS"
+          grep -q 'CODE_SIGN_ENTITLEMENTS = Luma/Luma.entitlements' <<< "$SETTINGS"
+          grep -q 'MACOSX_DEPLOYMENT_TARGET = 14.0' <<< "$SETTINGS"
+
+          /usr/libexec/PlistBuddy -c "Print :com.apple.security.app-sandbox" Luma/Luma.entitlements | grep -q "true"
+          /usr/libexec/PlistBuddy -c "Print :com.apple.security.network.client" Luma/Luma.entitlements | grep -q "true"
+          /usr/libexec/PlistBuddy -c "Print :com.apple.security.files.downloads.read-write" Luma/Luma.entitlements | grep -q "true"
+          /usr/libexec/PlistBuddy -c "Print :com.apple.security.files.user-selected.read-write" Luma/Luma.entitlements | grep -q "true"
+
+          echo "Validated Luma $VERSION ($BUILD), bundle $BUNDLE_ID"
+          echo "Release archive is intentionally unsigned in this workflow."
+
       - name: Package ZIP
         run: |
+          set -euo pipefail
           mkdir -p build/package
           ditto -c -k --sequesterRsrc --keepParent \
             build/Luma.xcarchive/Products/Applications/Luma.app \
-            build/package/Luma-macOS-1.0.0-unsigned.zip
+            "build/package/Luma-macOS-$LUMA_VERSION-unsigned.zip"
 
       - name: Package DMG
         run: |
+          set -euo pipefail
           hdiutil create \
-            -volname 'Luma 1.0.0' \
+            -volname "Luma $LUMA_VERSION" \
             -srcfolder build/Luma.xcarchive/Products/Applications \
             -ov \
             -format UDZO \
-            build/package/Luma-macOS-1.0.0-unsigned.dmg
+            "build/package/Luma-macOS-$LUMA_VERSION-unsigned.dmg"
 
       - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Luma-macOS-1.0.0-unsigned
+          name: Luma-macOS-unsigned
           path: build/package/
           if-no-files-found: error
