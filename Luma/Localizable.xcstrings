@@ -5734,6 +5734,53 @@
           }
         }
       }
+    },
+    "The downloaded application has an invalid or untrusted code signature.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The downloaded application has an invalid or untrusted code signature."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Загруженное приложение имеет недействительную или недоверенную подпись кода."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die heruntergeladene App hat eine ungültige oder nicht vertrauenswürdige Codesignatur."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’application téléchargée possède une signature de code invalide ou non approuvée."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La aplicación descargada tiene una firma de código no válida o no confiable."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载的应用具有无效或不受信任的代码签名。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードしたアプリのコード署名が無効または信頼できません。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
