@@ -30,6 +30,8 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
                 return String(localized: "The selected download folder is not available.")
             case .invalidResponse(let statusCode):
                 return String(localized: "The download server returned HTTP status \(statusCode).")
+            case .insecureRedirect:
+                return String(localized: "The download server redirected the update download to an insecure HTTP address.")
             case .downloadFailed:
                 return String(localized: "The update download failed.")
             case .cancelled:
