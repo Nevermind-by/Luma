@@ -18,6 +18,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         case unsupportedDownloadOption
         case invalidDestination
         case invalidResponse(statusCode: Int)
+        case insecureRedirect
         case downloadFailed
         case cancelled
 
@@ -134,6 +135,41 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         HTTPCookieMatcher.matchingCookies(cookies, for: url)
     }
 
+    static func isAllowedRedirect(from sourceURL: URL, to destinationURL: URL) -> Bool {
+        guard
+            let sourceScheme = sourceURL.scheme?.lowercased(),
+            let destinationScheme = destinationURL.scheme?.lowercased(),
+            ["http", "https"].contains(sourceScheme),
+            ["http", "https"].contains(destinationScheme)
+        else {
+            return false
+        }
+
+        return sourceScheme != "https" || destinationScheme == "https"
+    }
+
+    static func redirectedRequest(
+        _ request: URLRequest,
+        from sourceURL: URL,
+        to destinationURL: URL,
+        cookies: [HTTPCookie]
+    ) -> URLRequest? {
+        guard isAllowedRedirect(from: sourceURL, to: destinationURL) else {
+            return nil
+        }
+
+        var redirectedRequest = request
+        redirectedRequest.setValue(nil, forHTTPHeaderField: "Cookie")
+
+        let redirectedCookies = matchingCookies(cookies, for: destinationURL)
+        if !redirectedCookies.isEmpty {
+            let fields = HTTPCookie.requestHeaderFields(with: redirectedCookies)
+            redirectedRequest.setValue(fields["Cookie"], forHTTPHeaderField: "Cookie")
+        }
+
+        return redirectedRequest
+    }
+
     private func sanitizedFilename(from url: URL) -> String {
         let original = url.lastPathComponent.isEmpty ? "Luma-Download" : url.lastPathComponent
         return original
@@ -195,16 +231,21 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
             return
         }
 
-        var redirectedRequest = request
-        redirectedRequest.setValue(nil, forHTTPHeaderField: "Cookie")
-
-        let redirectedCookies = Self.matchingCookies(activeJob.cookies, for: destinationURL)
-        if !redirectedCookies.isEmpty {
-            let fields = HTTPCookie.requestHeaderFields(with: redirectedCookies)
-            redirectedRequest.setValue(fields["Cookie"], forHTTPHeaderField: "Cookie")
+        guard Self.isAllowedRedirect(from: activeJob.originalURL, to: destinationURL) else {
+            let completedJob = removeJob(for: task.taskIdentifier)
+            completedJob?.continuation.resume(throwing: DownloadError.insecureRedirect)
+            completionHandler(nil)
+            return
         }
 
-        completionHandler(redirectedRequest)
+        completionHandler(
+            Self.redirectedRequest(
+                request,
+                from: activeJob.originalURL,
+                to: destinationURL,
+                cookies: activeJob.cookies
+            )
+        )
     }
 
     func urlSession(
