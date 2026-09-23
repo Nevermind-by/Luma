@@ -231,7 +231,8 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
             return
         }
 
-        guard Self.isAllowedRedirect(from: activeJob.originalURL, to: destinationURL) else {
+        guard let sourceURL = task.currentRequest?.url,
+              Self.isAllowedRedirect(from: sourceURL, to: destinationURL) else {
             let completedJob = removeJob(for: task.taskIdentifier)
             completedJob?.continuation.resume(throwing: DownloadError.insecureRedirect)
             completionHandler(nil)
@@ -241,7 +242,7 @@ final class DownloadManager: NSObject, URLSessionDownloadDelegate, DownloadManag
         completionHandler(
             Self.redirectedRequest(
                 request,
-                from: activeJob.originalURL,
+                from: sourceURL,
                 to: destinationURL,
                 cookies: activeJob.cookies
             )
