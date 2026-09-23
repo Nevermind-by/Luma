@@ -4,6 +4,69 @@ import Testing
 
 struct DownloadManagerTests {
     @Test
+    func rejectsHTTPSDowngradeRedirect() {
+        #expect(
+            !DownloadManager.isAllowedRedirect(
+                from: URL(string: "https://appstorrent.ru/download/file.dmg")!,
+                to: URL(string: "http://cdn.example.com/file.dmg")!
+            )
+        )
+    }
+
+    @Test
+    func allowsHTTPSRedirect() {
+        #expect(
+            DownloadManager.isAllowedRedirect(
+                from: URL(string: "https://appstorrent.ru/download/file.dmg")!,
+                to: URL(string: "https://cdn.example.com/file.dmg")!
+            )
+        )
+    }
+
+    @Test
+    func redirectedRequestReplacesCookiesForDestinationHost() throws {
+        let sourceCookie = try HTTPCookie(properties: [
+            .domain: "appstorrent.ru",
+            .path: "/",
+            .name: "session",
+            .value: "source",
+            .secure: "TRUE"
+        ]).unwrap()
+        let destinationCookie = try HTTPCookie(properties: [
+            .domain: "cdn.example.com",
+            .path: "/",
+            .name: "session",
+            .value: "destination",
+            .secure: "TRUE"
+        ]).unwrap()
+        var request = URLRequest(url: URL(string: "https://cdn.example.com/file.dmg")!)
+        request.setValue("stale=value", forHTTPHeaderField: "Cookie")
+
+        let redirected = DownloadManager.redirectedRequest(
+            request,
+            from: URL(string: "https://appstorrent.ru/file.dmg")!,
+            to: URL(string: "https://cdn.example.com/file.dmg")!,
+            cookies: [sourceCookie, destinationCookie]
+        )
+
+        #expect(redirected?.value(forHTTPHeaderField: "Cookie") == "session=destination")
+    }
+
+    @Test
+    func redirectedRequestRejectsHTTPSDowngrade() {
+        let request = URLRequest(url: URL(string: "http://cdn.example.com/file.dmg")!)
+
+        #expect(
+            DownloadManager.redirectedRequest(
+                request,
+                from: URL(string: "https://appstorrent.ru/file.dmg")!,
+                to: URL(string: "http://cdn.example.com/file.dmg")!,
+                cookies: []
+            ) == nil
+        )
+    }
+
+    @Test
     func filtersCookiesToTheDownloadHost() throws {
         let appstorrentCookie = try HTTPCookie(properties: [
             .domain: "appstorrent.ru",
