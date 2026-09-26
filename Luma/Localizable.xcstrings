@@ -5828,6 +5828,53 @@
           }
         }
       }
+    },
+    "Luma could not access the saved installer file.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luma could not access the saved installer file."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luma не может получить доступ к сохранённому файлу установщика."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luma kann nicht auf die gespeicherte Installationsdatei zugreifen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luma ne peut pas accéder au fichier d’installation enregistré."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luma no puede acceder al archivo de instalación guardado."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luma 无法访问已保存的安装程序文件。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luma は保存されたインストーラファイルにアクセスできません。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
