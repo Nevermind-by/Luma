@@ -3667,6 +3667,53 @@
         }
       }
     },
+    "The download server redirected the update download to an insecure HTTP address.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The download server redirected the update download to an insecure HTTP address."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сервер загрузки перенаправил обновление на небезопасный HTTP-адрес."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Downloadserver hat das Update auf eine unsichere HTTP-Adresse umgeleitet."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le serveur de téléchargement a redirigé la mise à jour vers une adresse HTTP non sécurisée."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servidor de descarga redirigió la actualización a una dirección HTTP no segura."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "下载服务器将更新重定向到了不安全的 HTTP 地址。"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ダウンロードサーバーが更新を安全でない HTTP アドレスへリダイレクトしました。"
+          }
+        }
+      }
+    },
     "The download server returned HTTP status %lld.": {
       "extractionState": "manual",
       "localizations": {
