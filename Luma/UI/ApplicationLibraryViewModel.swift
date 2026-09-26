@@ -274,25 +274,20 @@ final class ApplicationLibraryViewModel: ObservableObject {
             pendingUpdateStore.markInstallerOpened(for: application.id)
             downloadStates[application.id] = .installing(version)
 
-            let fileAccess = pendingUpdateStore.beginFileAccess(for: application.id)
-            let installerUpdate: PreparedUpdate
-
-            if let fileAccess {
-                defer { fileAccess.stop() }
-                let artifact = downloadedArtifact(for: fileAccess.url)
-                installerUpdate = try await artifactInspector.inspect(
-                    artifact: artifact,
-                    expectedApplication: application.id,
-                    expectedVersion: version
+            guard let fileAccess = pendingUpdateStore.beginFileAccess(for: application.id) else {
+                downloadStates[application.id] = .failed(
+                    String(localized: "Luma could not access the saved installer file.")
                 )
-            } else {
-                installerUpdate = PreparedUpdate(
-                    application: application.id,
-                    version: version,
-                    artifactURL: resolvedURL,
-                    payload: .externalInstaller(resolvedURL)
-                )
+                return
             }
+            defer { fileAccess.stop() }
+
+            let artifact = downloadedArtifact(for: fileAccess.url)
+            let installerUpdate = try await artifactInspector.inspect(
+                artifact: artifact,
+                expectedApplication: application.id,
+                expectedVersion: version
+            )
 
             let result = try await applicationInstaller.install(installerUpdate, replacing: application)
             switch result {
